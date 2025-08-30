@@ -466,7 +466,7 @@ def create_or_update_ajuste_financeiro():
 
 @app.route('/relatorio/pdf')
 def gerar_pdf_relatorio():
-    """Gera e retorna um PDF do relatório de comissões"""
+    """Gera e retorna um PDF do relatório de comissões com layout de planilha."""
     try:
         mes = request.args.get('mes', type=int)
         ano = request.args.get('ano', type=int)
@@ -474,62 +474,40 @@ def gerar_pdf_relatorio():
         if not mes or not ano:
             return jsonify({'success': False, 'message': 'Mês e ano são obrigatórios'}), 400
         
-        # Obter dados do relatório
         commission_data, message = process_commissions(mes, ano)
         
         if not commission_data:
             return jsonify({'success': False, 'message': 'Nenhum dado encontrado para o período especificado'}), 404
         
-        # Criar buffer de memória para o PDF
         pdf_buffer = BytesIO()
-        
-        # Criar documento PDF em orientação paisagem
-        doc = SimpleDocTemplate(pdf_buffer, pagesize=landscape(A4))
+        doc = SimpleDocTemplate(pdf_buffer, pagesize=landscape(A4), rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=30)
         story = []
         
-        # Estilos
         styles = getSampleStyleSheet()
-        title_style = ParagraphStyle(
-            'CustomTitle',
-            parent=styles['Heading1'],
-            fontSize=18,
-            spaceAfter=30,
-            alignment=1,  # Center
-            textColor=colors.darkblue
-        )
-        
-        subtitle_style = ParagraphStyle(
-            'CustomSubtitle',
-            parent=styles['Heading2'],
-            fontSize=14,
-            spaceAfter=20,
-            alignment=1,  # Center
-            textColor=colors.grey
-        )
-        
-        # Título do relatório
-        story.append(Paragraph(f"Relatório de Comissões", title_style))
-        story.append(Paragraph(f"{mes}/{ano}", subtitle_style))
-        story.append(Spacer(1, 20))
-        
-        # NOVA LÓGICA PARA A TABELA ÚNICA
+        styles.add(ParagraphStyle(name='RightAlign', alignment=2))
+        styles.add(ParagraphStyle(name='Header', fontSize=8, fontName='Helvetica-Bold', alignment=1, textColor=colors.whitesmoke))
+        styles.add(ParagraphStyle(name='Cell', fontSize=8, fontName='Helvetica'))
+        styles.add(ParagraphStyle(name='CellRight', fontSize=8, fontName='Helvetica', alignment=2))
+        styles.add(ParagraphStyle(name='CellBoldRight', fontSize=8, fontName='Helvetica-Bold', alignment=2))
 
+        title_style = ParagraphStyle('CustomTitle', parent=styles['h1'], fontSize=16, alignment=1, spaceAfter=20)
+        story.append(Paragraph(f"Relatório de Comissões - {mes}/{ano}", title_style))
+        
         # 1. Definir os cabeçalhos da tabela
         table_headers = [
-            'VENDEDOR', 'FAT. ORACLE', 'AJUSTE FAT.', 'FAT. TOTAL', 
+            'VENDEDOR', 'FAT. ORACLE', 'AJUSTE FAT.', 'FAT. FINAL', 
             'COM. ORACLE', 'COM. AJUSTE', 'COM. BASE', 
             '(+) PAGO MÊS ANT.', '(-) DEV.', '(-) TÍT. ABERTO', 'COM. FINAL'
         ]
-
-        # 2. Preparar os dados da tabela, uma linha por vendedor
-        table_data = [table_headers]
-
+        
+        # Mapear para Paragraphs com estilo de header
+        header_paragraphs = [Paragraph(h, styles['Header']) for h in table_headers]
+        
+        # 2. Preparar os dados da tabela
+        table_data = [header_paragraphs]
+        
         for seller_code, seller in commission_data.items():
-            # Consolidar dados das filiais para o PDF
-            faturamento_oracle_total = 0
-            comissao_oracle_total = 0
-            
-            # Verificar se filiais_data existe e acessar os dados
+            # Verificar se filiais_data existe, senão usar fallback
             if 'filiais_data' in seller:
                 faturamento_oracle_total = (
                     seller['filiais_data'].get(1, {}).get('faturamentoOracle', 0) +
@@ -543,112 +521,49 @@ def gerar_pdf_relatorio():
                 # Fallback para estrutura antiga
                 faturamento_oracle_total = seller.get('faturamentoOracle', 0)
                 comissao_oracle_total = seller.get('comissaoBaseOracle', 0)
-
-            # Formatar os valores como strings para o PDF
+            
             row = [
-                Paragraph(f"{seller['name']} ({seller_code})", styles['Normal']),
-                f"R$ {faturamento_oracle_total:,.2f}",
-                f"R$ {seller['ajusteFaturamento']['valorAjuste']:,.2f}",
-                f"R$ {seller['faturamentoTotalConsolidado']:,.2f}",
-                f"R$ {comissao_oracle_total:,.2f}",
-                f"R$ {seller['comissaoDoAjuste']:,.2f}",
-                f"R$ {seller['totalCommission']:,.2f}",
-                f"R$ {seller['ajustesFinanceiros']['valorAcrescTituloPagoMesAnt']:,.2f}",
-                f"R$ {seller['ajustesFinanceiros']['valorRetMerc']:,.2f}",
-                f"R$ {seller['ajustesFinanceiros']['valorTituloAberto']:,.2f}",
-                f"R$ {seller['comissaoFinalConsolidada']:,.2f}",
+                Paragraph(f"{seller['name']} ({seller_code})", styles['Cell']),
+                Paragraph(f"R$ {faturamento_oracle_total:,.2f}", styles['CellRight']),
+                Paragraph(f"R$ {seller['ajusteFaturamento']['valorAjuste']:,.2f}", styles['CellRight']),
+                Paragraph(f"R$ {seller['faturamentoTotalConsolidado']:,.2f}", styles['CellBoldRight']),
+                Paragraph(f"R$ {comissao_oracle_total:,.2f}", styles['CellRight']),
+                Paragraph(f"R$ {seller['comissaoDoAjuste']:,.2f}", styles['CellRight']),
+                Paragraph(f"R$ {seller['totalCommission']:,.2f}", styles['CellBoldRight']),
+                Paragraph(f"R$ {seller['ajustesFinanceiros']['valorAcrescTituloPagoMesAnt']:,.2f}", styles['CellRight']),
+                Paragraph(f"R$ {seller['ajustesFinanceiros']['valorRetMerc']:,.2f}", styles['CellRight']),
+                Paragraph(f"R$ {seller['ajustesFinanceiros']['valorTituloAberto']:,.2f}", styles['CellRight']),
+                Paragraph(f"R$ {seller['comissaoFinalConsolidada']:,.2f}", styles['CellBoldRight']),
             ]
             table_data.append(row)
-
-        # 3. Criar o objeto Tabela
-        # Ajustar a largura das colunas conforme necessário
-        col_widths = [2.2*inch, 1*inch, 0.9*inch, 1*inch, 0.9*inch, 0.9*inch, 0.9*inch, 1*inch, 0.8*inch, 0.9*inch, 1*inch]
-
-        if len(table_data) > 1: # Só cria a tabela se houver dados
-            table = Table(table_data, colWidths=col_widths)
-
-            # 4. Aplicar um estilo de planilha
+        
+        # 3. Criar e estilizar a tabela
+        if len(table_data) > 1:
+            col_widths = [2*inch, 1*inch, 0.9*inch, 1*inch, 0.9*inch, 0.9*inch, 0.9*inch, 1*inch, 0.8*inch, 0.9*inch, 1*inch]
+            
+            table = Table(table_data, colWidths=col_widths, repeatRows=1)
+            
             table_style = TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.darkblue),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 8),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
-
-                ('BACKGROUND', (0, 1), (-1, -1), colors.whitesmoke),
-                ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
-                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-                ('FONTSIZE', (0, 1), (-1, -1), 8),
-
-                # Alinhamento das colunas de valores à direita
-                ('ALIGN', (1, 1), (-1, -1), 'RIGHT'),
-                # Alinhamento da coluna de vendedor à esquerda
-                ('ALIGN', (0, 1), (0, -1), 'LEFT'),
-
-                ('GRID', (0, 0), (-1, -1), 1, colors.black),
-                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.beige, colors.white]),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.whitesmoke, colors.white]),
+                # Estilo para COM. FINAL
+                ('BACKGROUND', (10, 1), (10, -1), colors.Color(0.85, 0.95, 0.85)), # Verde claro
+                # Estilo para FAT. FINAL
+                ('BACKGROUND', (3, 1), (3, -1), colors.Color(0.9, 0.9, 1)), # Azul claro
+                # Estilo para COM. BASE
+                ('BACKGROUND', (3, 1), (3, -1), colors.Color(0.9, 0.9, 1)), # Azul claro
             ])
-
-            # Estilo para a última coluna (Comissão Final)
-            table_style.add('BACKGROUND', (10, 1), (10, -1), colors.lightgreen)
-            table_style.add('FONTNAME', (10, 1), (10, -1), 'Helvetica-Bold')
-
             table.setStyle(table_style)
             story.append(table)
-            story.append(Spacer(1, 20))
-        
-        # Resumo geral
-        story.append(Paragraph("Resumo Geral", styles['Heading2']))
-        story.append(Spacer(1, 10))
-        
-        total_vendedores = len(commission_data)
-        total_faturamento = sum(seller['faturamentoTotalConsolidado'] for seller in commission_data.values())
-        total_comissao_base = sum(seller['totalCommission'] for seller in commission_data.values())
-        total_comissao_final = sum(seller['comissaoFinalConsolidada'] for seller in commission_data.values())
-        
-        summary_data = [
-            ['Total de Vendedores', 'Faturamento Total', 'Comissões Base', 'Comissões Finais'],
-            [str(total_vendedores), f"R$ {total_faturamento:,.2f}", f"R$ {total_comissao_base:,.2f}", f"R$ {total_comissao_final:,.2f}"]
-        ]
-        
-        summary_table = Table(summary_data, colWidths=[2*inch, 2*inch, 2*inch, 2*inch])
-        summary_style = TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.darkblue),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 10),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.lightgrey),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
-            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 1), (-1, -1), 10),
-        ])
-        summary_table.setStyle(summary_style)
-        story.append(summary_table)
-        
-        # Rodapé
-        story.append(Spacer(1, 30))
-        footer_style = ParagraphStyle(
-            'Footer',
-            parent=styles['Normal'],
-            fontSize=8,
-            alignment=1,  # Center
-            textColor=colors.grey
-        )
-        story.append(Paragraph(f"Relatório gerado em {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}", footer_style))
-        story.append(Paragraph("Sistema de Comissões - Versão 1.0", footer_style))
         
         # Gerar PDF
         doc.build(story)
         pdf_buffer.seek(0)
         
-        # Nome do arquivo
         nome_arquivo = f"Relatorio_Comissoes_{mes:02d}_{ano}.pdf"
         
-        # Retornar PDF para download
         return send_file(
             pdf_buffer,
             as_attachment=True,
@@ -657,6 +572,7 @@ def gerar_pdf_relatorio():
         )
         
     except Exception as e:
+        print(f"Erro ao gerar PDF: {str(e)}") # Adiciona log do erro no console
         return jsonify({'success': False, 'message': f'Erro ao gerar PDF: {str(e)}'}), 500
 
 @app.route('/api/ajuste-faturamento/<int:rca>/<int:ano>/<int:mes>', methods=['GET'])
