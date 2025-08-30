@@ -295,9 +295,31 @@ def process_commissions(mes=None, ano=None):
         valor_ajuste_faturamento = ajuste_faturamento.valor_ajuste if ajuste_faturamento else 0.0
         taxa_comissao_ajuste = ajuste_faturamento.taxa_comissao_ajuste if ajuste_faturamento else 0.0
             
-        # Separar produtos em apenas duas categorias
+        # Separar produtos com comissão modificada e outros produtos
         produtos_comissao_modificada_df = group[group['productCode'].isin(produtos_comissao_modificada)]
         outros_produtos = group[~group['productCode'].isin(produtos_comissao_modificada)]
+
+        # Detalhar produtos com comissão especial
+        produtos_detalhados = []
+        if not produtos_comissao_modificada_df.empty:
+            # Agrupar por produto para obter detalhes individuais
+            produtos_agrupados = produtos_comissao_modificada_df.groupby(['productCode', 'productDesc'])
+            
+            for (product_code, product_desc), produto_group in produtos_agrupados:
+                # Obter taxa de comissão aplicada ao produto
+                taxa_comissao = get_commission_rate(seller_code, product_code)
+                
+                # Calcular faturamento e comissão do produto
+                faturamento_produto = produto_group['revenue'].sum()
+                comissao_produto = produto_group['commission'].sum()
+                
+                produtos_detalhados.append({
+                    'codigo_produto': product_code,
+                    'nome_produto': product_desc,
+                    'taxa_comissao': taxa_comissao,
+                    'faturamento_total': faturamento_produto,
+                    'comissao_total': comissao_produto
+                })
 
         # Calcular comissão base do Oracle (PASSO 1 - não alterar)
         comissao_base_oracle = group['commission'].sum()
@@ -329,10 +351,7 @@ def process_commissions(mes=None, ano=None):
             'faturamentoOracle': faturamento_oracle,
             'faturamentoFinal': faturamento_final,
             'details': {
-                'produtos_comissao_modificada': {
-                    'revenue': produtos_comissao_modificada_df['revenue'].sum() if not produtos_comissao_modificada_df.empty else 0,
-                    'commission': produtos_comissao_modificada_df['commission'].sum() if not produtos_comissao_modificada_df.empty else 0,
-                },
+                'produtos_detalhados': produtos_detalhados,
                 'outros_produtos': {
                     'revenue': outros_produtos['revenue'].sum() if not outros_produtos.empty else 0,
                     'commission': outros_produtos['commission'].sum() if not outros_produtos.empty else 0,

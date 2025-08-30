@@ -630,6 +630,29 @@ input:checked + .slider:before {
     min-width: 0;
 }
 
+/* Produtos detalhados */
+.product-detail-item {
+    margin-bottom: 20px;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 10px;
+    border-left: 4px solid #28a745;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.product-detail-item:last-child {
+    margin-bottom: 0;
+}
+
+.product-header h4 {
+    margin-bottom: 15px;
+    color: #28a745;
+    font-size: 1.1rem;
+    font-weight: 600;
+    border-bottom: 1px solid #dee2e6;
+    padding-bottom: 8px;
+}
+
 /* Seção de totais e ajustes financeiros */
 .totals-section {
     padding: 20px;
@@ -872,4 +895,35 @@ input:checked + .slider:before {
     .product-summary {
         grid-template-columns: 1fr;
     }
+}
+
+/* Estilos para o botão de download PDF */
+.pdf-download-section {
+    text-align: center;
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.pdf-download-btn {
+    background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%) !important;
+    border: 2px solid rgba(255, 255, 255, 0.3) !important;
+    color: white !important;
+    font-size: 1rem !important;
+    padding: 12px 24px !important;
+    font-weight: bold !important;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(231, 76, 60, 0.3);
+}
+
+.pdf-download-btn:hover {
+    background: linear-gradient(135deg, #c0392b 0%, #a93226 100%) !important;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(231, 76, 60, 0.4);
+    color: white !important;
+}
+
+.pdf-download-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 10px rgba(231, 76, 60, 0.3);
 }

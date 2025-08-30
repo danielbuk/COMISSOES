@@ -1,8 +1,14 @@
-from flask import render_template, request, jsonify, redirect, url_for
+from flask import render_template, request, jsonify, redirect, url_for, send_file
 from . import app
 from .services import process_commissions, import_month_data, get_available_months, sincronizar_produtos_oracle, buscar_produtos_cache, obter_estatisticas_cache
 from .models import Vendedor, RegraComissao, ComissaoPadrao, ProdutoEspecial, db, AjusteFinanceiro, AjusteFaturamento
 from datetime import datetime
+from reportlab.lib.pagesizes import A4, landscape
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+from reportlab.lib import colors
+from io import BytesIO
 
 @app.route('/')
 def index():
@@ -457,6 +463,212 @@ def create_or_update_ajuste_financeiro():
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': f'Erro ao salvar ajuste: {str(e)}'}), 500
+
+@app.route('/relatorio/pdf')
+def gerar_pdf_relatorio():
+    """Gera e retorna um PDF do relatório de comissões"""
+    try:
+        mes = request.args.get('mes', type=int)
+        ano = request.args.get('ano', type=int)
+        
+        if not mes or not ano:
+            return jsonify({'success': False, 'message': 'Mês e ano são obrigatórios'}), 400
+        
+        # Obter dados do relatório
+        commission_data, message = process_commissions(mes, ano)
+        
+        if not commission_data:
+            return jsonify({'success': False, 'message': 'Nenhum dado encontrado para o período especificado'}), 404
+        
+        # Criar buffer de memória para o PDF
+        pdf_buffer = BytesIO()
+        
+        # Criar documento PDF em orientação paisagem
+        doc = SimpleDocTemplate(pdf_buffer, pagesize=landscape(A4))
+        story = []
+        
+        # Estilos
+        styles = getSampleStyleSheet()
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=18,
+            spaceAfter=30,
+            alignment=1,  # Center
+            textColor=colors.darkblue
+        )
+        
+        subtitle_style = ParagraphStyle(
+            'CustomSubtitle',
+            parent=styles['Heading2'],
+            fontSize=14,
+            spaceAfter=20,
+            alignment=1,  # Center
+            textColor=colors.grey
+        )
+        
+        # Título do relatório
+        story.append(Paragraph(f"Relatório de Comissões", title_style))
+        story.append(Paragraph(f"{mes}/{ano}", subtitle_style))
+        story.append(Spacer(1, 20))
+        
+        # Para cada vendedor, criar uma tabela
+        for seller_code, seller in commission_data.items():
+            # Cabeçalho do vendedor
+            seller_header_style = ParagraphStyle(
+                'SellerHeader',
+                parent=styles['Heading3'],
+                fontSize=12,
+                spaceAfter=10,
+                textColor=colors.white,
+                backColor=colors.darkblue
+            )
+            story.append(Paragraph(f"{seller['name']} - RCA: {seller_code}", seller_header_style))
+            
+            # Dados do vendedor
+            data = [
+                ['Descrição', 'Valor'],
+                ['Faturamento Oracle', f"R$ {seller['faturamentoOracle']:,.2f}"],
+            ]
+            
+            # Adicionar ajuste manual se existir
+            if seller['ajusteFaturamento']['valorAjuste'] != 0:
+                ajuste_valor = seller['ajusteFaturamento']['valorAjuste']
+                ajuste_taxa = seller['ajusteFaturamento']['taxaComissaoAjuste']
+                sinal = '+' if ajuste_valor > 0 else ''
+                data.append([f'Ajuste Manual ({ajuste_taxa:.1%})', f"{sinal}R$ {ajuste_valor:,.2f}"])
+            
+            data.extend([
+                ['FATURAMENTO TOTAL', f"R$ {seller['faturamentoFinal']:,.2f}"],
+            ])
+            
+            # Adicionar produtos com comissão especial detalhados
+            if seller['details']['produtos_detalhados']:
+                data.append(['', ''])  # Linha em branco
+                data.append(['PRODUTOS COM COMISSÃO ESPECIAL', ''])
+                
+                for produto in seller['details']['produtos_detalhados']:
+                    taxa_percentual = produto['taxa_comissao'] * 100
+                    data.append([
+                        f"  {produto['nome_produto']} ({taxa_percentual:.1f}%)",
+                        f"R$ {produto['faturamento_total']:,.2f} | R$ {produto['comissao_total']:,.2f}"
+                    ])
+                
+                data.append(['', ''])  # Linha em branco
+            
+            # Adicionar outros produtos
+            if seller['details']['outros_produtos']['revenue'] > 0:
+                data.append(['OUTROS PRODUTOS', f"R$ {seller['details']['outros_produtos']['revenue']:,.2f} | R$ {seller['details']['outros_produtos']['commission']:,.2f}"])
+                data.append(['', ''])  # Linha em branco
+            
+            data.extend([
+                ['Comissão s/ Faturamento Oracle', f"R$ {seller['comissaoBaseOracle']:,.2f}"],
+            ])
+            
+            # Adicionar comissão do ajuste se existir
+            if seller['comissaoDoAjuste'] != 0:
+                data.append(['Comissão s/ Ajuste Manual', f"R$ {seller['comissaoDoAjuste']:,.2f}"])
+            
+            data.extend([
+                ['COMISSÃO TOTAL (BASE)', f"R$ {seller['totalCommission']:,.2f}"],
+                ['(+) Valor Acrésc. Título Pago Mês Ant.', f"+ R$ {seller['ajustesFinanceiros']['valorAcrescTituloPagoMesAnt']:,.2f}"],
+                ['(-) Valor Ret. Merc. (Devolução)', f"- R$ {seller['ajustesFinanceiros']['valorRetMerc']:,.2f}"],
+                ['(-) Valor Título Aberto', f"- R$ {seller['ajustesFinanceiros']['valorTituloAberto']:,.2f}"],
+                ['COMISSÃO FINAL A PAGAR', f"R$ {seller['comissaoFinal']:,.2f}"],
+            ])
+            
+            # Criar tabela com colunas mais largas para orientação paisagem
+            table = Table(data, colWidths=[5.5*inch, 2.5*inch])
+            
+            # Estilo da tabela
+            table_style = TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.darkblue),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('ALIGN', (1, 1), (-1, -1), 'RIGHT'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 1), (-1, -1), 9),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('ALIGN', (1, 1), (-1, -1), 'RIGHT'),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.beige, colors.white]),
+            ])
+            
+            # Destacar linhas importantes
+            for i, row in enumerate(data):
+                if 'TOTAL' in row[0] or 'FINAL' in row[0]:
+                    table_style.add('BACKGROUND', (0, i), (-1, i), colors.orange)
+                    table_style.add('TEXTCOLOR', (0, i), (-1, i), colors.white)
+                    table_style.add('FONTNAME', (0, i), (-1, i), 'Helvetica-Bold')
+            
+            table.setStyle(table_style)
+            story.append(table)
+            story.append(Spacer(1, 20))
+        
+        # Resumo geral
+        story.append(Paragraph("Resumo Geral", styles['Heading2']))
+        story.append(Spacer(1, 10))
+        
+        total_vendedores = len(commission_data)
+        total_faturamento = sum(seller['faturamentoFinal'] for seller in commission_data.values())
+        total_comissao_base = sum(seller['totalCommission'] for seller in commission_data.values())
+        total_comissao_final = sum(seller['comissaoFinal'] for seller in commission_data.values())
+        
+        summary_data = [
+            ['Total de Vendedores', 'Faturamento Total', 'Comissões Base', 'Comissões Finais'],
+            [str(total_vendedores), f"R$ {total_faturamento:,.2f}", f"R$ {total_comissao_base:,.2f}", f"R$ {total_comissao_final:,.2f}"]
+        ]
+        
+        summary_table = Table(summary_data, colWidths=[2*inch, 2*inch, 2*inch, 2*inch])
+        summary_style = TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.darkblue),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.lightgrey),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 1), (-1, -1), 10),
+        ])
+        summary_table.setStyle(summary_style)
+        story.append(summary_table)
+        
+        # Rodapé
+        story.append(Spacer(1, 30))
+        footer_style = ParagraphStyle(
+            'Footer',
+            parent=styles['Normal'],
+            fontSize=8,
+            alignment=1,  # Center
+            textColor=colors.grey
+        )
+        story.append(Paragraph(f"Relatório gerado em {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}", footer_style))
+        story.append(Paragraph("Sistema de Comissões - Versão 1.0", footer_style))
+        
+        # Gerar PDF
+        doc.build(story)
+        pdf_buffer.seek(0)
+        
+        # Nome do arquivo
+        nome_arquivo = f"Relatorio_Comissoes_{mes:02d}_{ano}.pdf"
+        
+        # Retornar PDF para download
+        return send_file(
+            pdf_buffer,
+            as_attachment=True,
+            download_name=nome_arquivo,
+            mimetype='application/pdf'
+        )
+        
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Erro ao gerar PDF: {str(e)}'}), 500
 
 @app.route('/api/ajuste-faturamento/<int:rca>/<int:ano>/<int:mes>', methods=['GET'])
 def get_ajuste_faturamento(rca, ano, mes):

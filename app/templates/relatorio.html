@@ -42,6 +42,11 @@
                         <span class="stat-value">R$ {{ "{:,.2f}".format(sellers.values()|sum(attribute='comissaoFinal')) }}</span>
                     </div>
                 </div>
+                <div class="pdf-download-section">
+                    <a href="{{ url_for('gerar_pdf_relatorio', mes=mes, ano=ano) }}" class="btn btn-primary pdf-download-btn">
+                        📄 Baixar PDF
+                    </a>
+                </div>
             </div>
         </div>
 
@@ -108,20 +113,27 @@
                 </div>
             </div>
 
-            <!-- Produtos com Comissão Modificada -->
-            {% if seller.details.produtos_comissao_modificada.revenue > 0 %}
+            <!-- Produtos com Comissão Especial Detalhados -->
+            {% if seller.details.produtos_detalhados %}
             <div class="product-section">
-                <h3>🎯 PRODUTOS COM COMISSÃO MODIFICADA</h3>
-                <div class="product-summary">
-                    <div class="product-item">
-                        <span class="label">Faturamento:</span>
-                        <span class="value">R$ {{ "{:,.2f}".format(seller.details.produtos_comissao_modificada.revenue) }}</span>
+                <h3>🎯 PRODUTOS COM COMISSÃO ESPECIAL</h3>
+                {% for produto in seller.details.produtos_detalhados %}
+                <div class="product-detail-item">
+                    <div class="product-header">
+                        <h4>{{ produto.nome_produto }} ({{ "{:.1%}".format(produto.taxa_comissao) }})</h4>
                     </div>
-                    <div class="product-item">
-                        <span class="label">Comissão:</span>
-                        <span class="value">R$ {{ "{:,.2f}".format(seller.details.produtos_comissao_modificada.commission) }}</span>
+                    <div class="product-summary">
+                        <div class="product-item">
+                            <span class="label">Faturamento:</span>
+                            <span class="value">R$ {{ "{:,.2f}".format(produto.faturamento_total) }}</span>
+                        </div>
+                        <div class="product-item">
+                            <span class="label">Comissão:</span>
+                            <span class="value">R$ {{ "{:,.2f}".format(produto.comissao_total) }}</span>
+                        </div>
                     </div>
                 </div>
+                {% endfor %}
             </div>
             {% endif %}
 
