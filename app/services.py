@@ -45,6 +45,9 @@ def fetch_sales_data_from_oracle(mes, ano):
             """
             df = pd.read_sql(query, connection)
             
+            # Remover colunas duplicadas se existirem
+            df = df.loc[:, ~df.columns.duplicated()]
+            
             # Renomear colunas para corresponder à lógica do script original
             column_mapping = {
                 'CODIGO_VENDEDOR': 'sellerCode',
@@ -109,7 +112,18 @@ def save_sales_data_to_cache(df, mes, ano):
         db.session.commit()
         
         # Insere os novos dados de vendas
+        filiais_processadas = set()
         for _, row in df.iterrows():
+            # Tratar o valor da filial de forma segura
+            filial_value = 1  # valor padrão
+            if 'filial' in row.index:
+                try:
+                    if pd.notna(row['filial']):
+                        filial_value = int(row['filial'])
+                        filiais_processadas.add(filial_value)
+                except (ValueError, TypeError):
+                    filial_value = 1
+            
             dados = DadosVendas(
                 mes=mes,
                 ano=ano,
@@ -121,7 +135,7 @@ def save_sales_data_to_cache(df, mes, ano):
                 valor_ret_merc=float(row['valorRetMerc']),
                 valor_titulo_aberto=float(row['valorTituloAberto']),
                 valor_acresc_titulo_pago_mes_ant=float(row['valorAcrescTituloPagoMesAnt']),
-                filial=int(row['filial']) if 'filial' in row and pd.notna(row['filial']) else 1
+                filial=filial_value
             )
             db.session.add(dados)
         
@@ -141,7 +155,9 @@ def get_sales_data_from_cache(mes, ano):
         
         # Converte para DataFrame
         df_data = []
+        filiais_cache = set()
         for d in dados:
+            filiais_cache.add(d.filial)
             df_data.append({
                 'sellerCode': d.seller_code,
                 'sellerName': d.seller_name,
@@ -154,7 +170,8 @@ def get_sales_data_from_cache(mes, ano):
                 'filial': d.filial
             })
         
-        return pd.DataFrame(df_data)
+        df = pd.DataFrame(df_data)
+        return df
     except Exception as e:
         print(f"Erro ao buscar dados do cache: {e}")
         return pd.DataFrame()

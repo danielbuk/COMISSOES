@@ -168,10 +168,10 @@
                     </div>
                     
                     <!-- Produtos com Comissão Especial Detalhados -->
-                    {% if seller.filiais['98'].details.produtos_detalhados %}
+                    {% if seller.filiais[98].details.produtos_detalhados %}
                     <div class="product-section">
                         <h4>🎯 PRODUTOS COM COMISSÃO ESPECIAL</h4>
-                        {% for produto in seller.filiais['98'].details.produtos_detalhados %}
+                        {% for produto in seller.filiais[98].details.produtos_detalhados %}
                         <div class="product-detail-item">
                             <div class="product-header">
                                 <h5>{{ produto.nome_produto }} ({{ "{:.1%}".format(produto.taxa_comissao) }})</h5>
@@ -192,17 +192,17 @@
                     {% endif %}
 
                     <!-- Outros Produtos -->
-                    {% if seller.filiais['98'].details.outros_produtos.revenue > 0 %}
+                    {% if seller.filiais[98].details.outros_produtos.revenue > 0 %}
                     <div class="product-section">
                         <h4>📦 OUTROS PRODUTOS</h4>
                         <div class="product-summary">
                             <div class="product-item">
                                 <span class="label">Faturamento:</span>
-                                <span class="value">R$ {{ "{:,.2f}".format(seller.filiais['98'].details.outros_produtos.revenue) }}</span>
+                                <span class="value">R$ {{ "{:,.2f}".format(seller.filiais[98].details.outros_produtos.revenue) }}</span>
                             </div>
                             <div class="product-item">
                                 <span class="label">Comissão:</span>
-                                <span class="value">R$ {{ "{:,.2f}".format(seller.filiais['98'].details.outros_produtos.commission) }}</span>
+                                <span class="value">R$ {{ "{:,.2f}".format(seller.filiais[98].details.outros_produtos.commission) }}</span>
                             </div>
                         </div>
                     </div>
