@@ -31,15 +31,15 @@
                     </div>
                     <div class="stat">
                         <span class="stat-label">Faturamento Total:</span>
-                        <span class="stat-value">R$ {{ "{:,.2f}".format(sellers.values()|sum(attribute='faturamentoFinal')) }}</span>
+                        <span class="stat-value">R$ {{ "{:,.2f}".format(sellers.values()|sum(attribute='faturamentoTotalConsolidado')) }}</span>
                     </div>
                     <div class="stat">
                         <span class="stat-label">Comissões Base:</span>
-                        <span class="stat-value">R$ {{ "{:,.2f}".format(sellers.values()|sum(attribute='totalCommission')) }}</span>
+                        <span class="stat-value">R$ {{ "{:,.2f}".format(sellers.values()|sum(attribute='comissaoBaseOracle')) }}</span>
                     </div>
                     <div class="stat">
                         <span class="stat-label">Comissões Finais:</span>
-                        <span class="stat-value">R$ {{ "{:,.2f}".format(sellers.values()|sum(attribute='comissaoFinal')) }}</span>
+                        <span class="stat-value">R$ {{ "{:,.2f}".format(sellers.values()|sum(attribute='comissaoFinalConsolidada')) }}</span>
                     </div>
                 </div>
                 <div class="pdf-download-section">
@@ -77,116 +77,202 @@
                 </div>
             </div>
 
-            <div class="seller-summary">
-                <div class="summary-row">
-                    <div class="summary-item">
-                        <span class="label">Faturamento Oracle:</span>
-                        <span class="value">R$ {{ "{:,.2f}".format(seller.faturamentoOracle) }}</span>
-                    </div>
-                    <div class="summary-item">
-                        <span class="label">Faturamento Final:</span>
-                        <span class="value">R$ {{ "{:,.2f}".format(seller.faturamentoFinal) }}</span>
-                    </div>
+            <div class="seller-summary-consolidated">
+                <div class="summary-item">
+                    <span class="label">Faturamento Total (Consolidado):</span>
+                    <span class="value">R$ {{ "{:,.2f}".format(seller.faturamentoTotalConsolidado) }}</span>
                 </div>
+                <div class="summary-item final">
+                    <span class="label">Comissão Final a Pagar:</span>
+                    <span class="value final-value">R$ {{ "{:,.2f}".format(seller.comissaoFinalConsolidada) }}</span>
+                </div>
+            </div>
+
+            <div class="accordion-controls">
+                <button class="accordion-toggle" data-target="filial1-{{ seller_code }}">Filial 1 (Vendas)</button>
+                <button class="accordion-toggle" data-target="filial98-{{ seller_code }}">Filial 98 (Romaneio)</button>
+                <button class="accordion-toggle" data-target="ajustes-{{ seller_code }}">Ajustes Financeiros</button>
+            </div>
+
+            <div class="accordion-content" id="filial1-{{ seller_code }}">
+                {% if seller.filiais['1'] %}
+                    <h3>Detalhes - Filial 1 (Vendas)</h3>
+                    <div class="filial-summary">
+                        <div class="summary-item">
+                            <span class="label">Faturamento Oracle:</span>
+                            <span class="value">R$ {{ "{:,.2f}".format(seller.filiais['1'].faturamentoOracle) }}</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="label">Comissão Base Oracle:</span>
+                            <span class="value">R$ {{ "{:,.2f}".format(seller.filiais['1'].comissaoBaseOracle) }}</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Produtos com Comissão Especial Detalhados -->
+                    {% if seller.filiais['1'].details.produtos_detalhados %}
+                    <div class="product-section">
+                        <h4>🎯 PRODUTOS COM COMISSÃO ESPECIAL</h4>
+                        {% for produto in seller.filiais['1'].details.produtos_detalhados %}
+                        <div class="product-detail-item">
+                            <div class="product-header">
+                                <h5>{{ produto.nome_produto }} ({{ "{:.1%}".format(produto.taxa_comissao) }})</h5>
+                            </div>
+                            <div class="product-summary">
+                                <div class="product-item">
+                                    <span class="label">Faturamento:</span>
+                                    <span class="value">R$ {{ "{:,.2f}".format(produto.faturamento_total) }}</span>
+                                </div>
+                                <div class="product-item">
+                                    <span class="label">Comissão:</span>
+                                    <span class="value">R$ {{ "{:,.2f}".format(produto.comissao_total) }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    <!-- Outros Produtos -->
+                    {% if seller.filiais['1'].details.outros_produtos.revenue > 0 %}
+                    <div class="product-section">
+                        <h4>📦 OUTROS PRODUTOS</h4>
+                        <div class="product-summary">
+                            <div class="product-item">
+                                <span class="label">Faturamento:</span>
+                                <span class="value">R$ {{ "{:,.2f}".format(seller.filiais['1'].details.outros_produtos.revenue) }}</span>
+                            </div>
+                            <div class="product-item">
+                                <span class="label">Comissão:</span>
+                                <span class="value">R$ {{ "{:,.2f}".format(seller.filiais['1'].details.outros_produtos.commission) }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                {% else %}
+                    <p>Nenhuma venda para Filial 1 neste período.</p>
+                {% endif %}
+            </div>
+
+            <div class="accordion-content" id="filial98-{{ seller_code }}">
+                {% if seller.filiais['98'] %}
+                    <h3>Detalhes - Filial 98 (Romaneio)</h3>
+                    <div class="filial-summary">
+                        <div class="summary-item">
+                            <span class="label">Faturamento Oracle:</span>
+                            <span class="value">R$ {{ "{:,.2f}".format(seller.filiais['98'].faturamentoOracle) }}</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="label">Comissão Base Oracle:</span>
+                            <span class="value">R$ {{ "{:,.2f}".format(seller.filiais['98'].comissaoBaseOracle) }}</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Produtos com Comissão Especial Detalhados -->
+                    {% if seller.filiais['98'].details.produtos_detalhados %}
+                    <div class="product-section">
+                        <h4>🎯 PRODUTOS COM COMISSÃO ESPECIAL</h4>
+                        {% for produto in seller.filiais['98'].details.produtos_detalhados %}
+                        <div class="product-detail-item">
+                            <div class="product-header">
+                                <h5>{{ produto.nome_produto }} ({{ "{:.1%}".format(produto.taxa_comissao) }})</h5>
+                            </div>
+                            <div class="product-summary">
+                                <div class="product-item">
+                                    <span class="label">Faturamento:</span>
+                                    <span class="value">R$ {{ "{:,.2f}".format(produto.faturamento_total) }}</span>
+                                </div>
+                                <div class="product-item">
+                                    <span class="label">Comissão:</span>
+                                    <span class="value">R$ {{ "{:,.2f}".format(produto.comissao_total) }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    <!-- Outros Produtos -->
+                    {% if seller.filiais['98'].details.outros_produtos.revenue > 0 %}
+                    <div class="product-section">
+                        <h4>📦 OUTROS PRODUTOS</h4>
+                        <div class="product-summary">
+                            <div class="product-item">
+                                <span class="label">Faturamento:</span>
+                                <span class="value">R$ {{ "{:,.2f}".format(seller.filiais['98'].details.outros_produtos.revenue) }}</span>
+                            </div>
+                            <div class="product-item">
+                                <span class="label">Comissão:</span>
+                                <span class="value">R$ {{ "{:,.2f}".format(seller.filiais['98'].details.outros_produtos.commission) }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                {% else %}
+                    <p>Nenhuma venda para Filial 98 neste período.</p>
+                {% endif %}
+            </div>
+
+            <div class="accordion-content" id="ajustes-{{ seller_code }}">
+                <h3>Ajustes Financeiros</h3>
                 
                 {% if seller.ajusteFaturamento.valorAjuste != 0 %}
-                <div class="summary-row ajuste-row">
-                    <div class="summary-item">
-                        <span class="label">Ajuste Manual:</span>
-                        <span class="value {% if seller.ajusteFaturamento.valorAjuste > 0 %}positive{% else %}negative{% endif %}">
-                            {% if seller.ajusteFaturamento.valorAjuste > 0 %}+{% endif %}R$ {{ "{:,.2f}".format(seller.ajusteFaturamento.valorAjuste) }}
-                            <small>({{ "{:.1%}".format(seller.ajusteFaturamento.taxaComissaoAjuste) }})</small>
-                        </span>
-                    </div>
-                    <div class="summary-item">
-                        <span class="label">Comissão do Ajuste:</span>
-                        <span class="value">R$ {{ "{:,.2f}".format(seller.comissaoDoAjuste) }}</span>
+                <div class="ajuste-section">
+                    <h4>📈 Ajuste de Faturamento</h4>
+                    <div class="ajuste-summary">
+                        <div class="ajuste-item">
+                            <span class="label">Valor do Ajuste:</span>
+                            <span class="value {% if seller.ajusteFaturamento.valorAjuste > 0 %}positive{% else %}negative{% endif %}">
+                                {% if seller.ajusteFaturamento.valorAjuste > 0 %}+{% endif %}R$ {{ "{:,.2f}".format(seller.ajusteFaturamento.valorAjuste) }}
+                                <small>({{ "{:.1%}".format(seller.ajusteFaturamento.taxaComissaoAjuste) }})</small>
+                            </span>
+                        </div>
+                        <div class="ajuste-item">
+                            <span class="label">Comissão do Ajuste:</span>
+                            <span class="value">R$ {{ "{:,.2f}".format(seller.comissaoDoAjuste) }}</span>
+                        </div>
+                        {% if seller.ajusteFaturamento.motivo %}
+                        <div class="ajuste-item">
+                            <span class="label">Motivo:</span>
+                            <span class="value">{{ seller.ajusteFaturamento.motivo }}</span>
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
                 {% endif %}
-                
-                <div class="summary-row">
-                    <div class="summary-item">
-                        <span class="label">Comissão Final:</span>
-                        <span class="value">R$ {{ "{:,.2f}".format(seller.comissaoFinal) }}</span>
-                    </div>
-                </div>
-            </div>
 
-            <!-- Produtos com Comissão Especial Detalhados -->
-            {% if seller.details.produtos_detalhados %}
-            <div class="product-section">
-                <h3>🎯 PRODUTOS COM COMISSÃO ESPECIAL</h3>
-                {% for produto in seller.details.produtos_detalhados %}
-                <div class="product-detail-item">
-                    <div class="product-header">
-                        <h4>{{ produto.nome_produto }} ({{ "{:.1%}".format(produto.taxa_comissao) }})</h4>
-                    </div>
-                    <div class="product-summary">
-                        <div class="product-item">
-                            <span class="label">Faturamento:</span>
-                            <span class="value">R$ {{ "{:,.2f}".format(produto.faturamento_total) }}</span>
+                <div class="totals-section">
+                    <h4>💰 TOTAIS E AJUSTES FINANCEIROS</h4>
+                    <div class="totals-summary">
+                        <div class="total-item">
+                            <span class="label">Comissão Base Total (Todas as Filiais):</span>
+                            <span class="value">R$ {{ "{:,.2f}".format(seller.comissaoBaseOracle) }}</span>
                         </div>
-                        <div class="product-item">
-                            <span class="label">Comissão:</span>
-                            <span class="value">R$ {{ "{:,.2f}".format(produto.comissao_total) }}</span>
+                        {% if seller.comissaoDoAjuste != 0 %}
+                        <div class="total-item">
+                            <span class="label">Comissão (ajuste manual):</span>
+                            <span class="value">R$ {{ "{:,.2f}".format(seller.comissaoDoAjuste) }}</span>
                         </div>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-            {% endif %}
-
-            <!-- Outros Produtos -->
-            {% if seller.details.outros_produtos.revenue > 0 %}
-            <div class="product-section">
-                <h3>📦 OUTROS PRODUTOS</h3>
-                <div class="product-summary">
-                    <div class="product-item">
-                        <span class="label">Faturamento:</span>
-                        <span class="value">R$ {{ "{:,.2f}".format(seller.details.outros_produtos.revenue) }}</span>
-                    </div>
-                    <div class="product-item">
-                        <span class="label">Comissão:</span>
-                        <span class="value">R$ {{ "{:,.2f}".format(seller.details.outros_produtos.commission) }}</span>
-                    </div>
-                </div>
-            </div>
-            {% endif %}
-
-            <!-- Seção de Totais e Ajustes Financeiros -->
-            <div class="totals-section">
-                <h3>💰 TOTAIS E AJUSTES FINANCEIROS</h3>
-                <div class="totals-summary">
-                    <div class="total-item">
-                        <span class="label">Comissão (vendas Oracle):</span>
-                        <span class="value">R$ {{ "{:,.2f}".format(seller.comissaoBaseOracle) }}</span>
-                    </div>
-                    {% if seller.comissaoDoAjuste != 0 %}
-                    <div class="total-item">
-                        <span class="label">Comissão (ajuste manual):</span>
-                        <span class="value">R$ {{ "{:,.2f}".format(seller.comissaoDoAjuste) }}</span>
-                    </div>
-                    {% endif %}
-                    <div class="total-item">
-                        <span class="label">Comissão Base Total:</span>
-                        <span class="value">R$ {{ "{:,.2f}".format(seller.totalCommission) }}</span>
-                    </div>
-                    <div class="total-item">
-                        <span class="label">Valor Acrésc. Título Pago Mês Ant.:</span>
-                        <span class="value positive">+ R$ {{ "{:,.2f}".format(seller.ajustesFinanceiros.valorAcrescTituloPagoMesAnt) }}</span>
-                    </div>
-                    <div class="total-item">
-                        <span class="label">Valor Ret. Merc. (Devolução):</span>
-                        <span class="value negative">- R$ {{ "{:,.2f}".format(seller.ajustesFinanceiros.valorRetMerc) }}</span>
-                    </div>
-                    <div class="total-item">
-                        <span class="label">Valor Título Aberto:</span>
-                        <span class="value negative">- R$ {{ "{:,.2f}".format(seller.ajustesFinanceiros.valorTituloAberto) }}</span>
-                    </div>
-                    <div class="total-item final">
-                        <span class="label">Comissão Final:</span>
-                        <span class="value final-value">R$ {{ "{:,.2f}".format(seller.comissaoFinal) }}</span>
+                        {% endif %}
+                        <div class="total-item">
+                            <span class="label">Comissão Base Total:</span>
+                            <span class="value">R$ {{ "{:,.2f}".format(seller.totalCommission) }}</span>
+                        </div>
+                        <div class="total-item">
+                            <span class="label">Valor Acrésc. Título Pago Mês Ant.:</span>
+                            <span class="value positive">+ R$ {{ "{:,.2f}".format(seller.ajustesFinanceiros.valorAcrescTituloPagoMesAnt) }}</span>
+                        </div>
+                        <div class="total-item">
+                            <span class="label">Valor Ret. Merc. (Devolução):</span>
+                            <span class="value negative">- R$ {{ "{:,.2f}".format(seller.ajustesFinanceiros.valorRetMerc) }}</span>
+                        </div>
+                        <div class="total-item">
+                            <span class="label">Valor Título Aberto:</span>
+                            <span class="value negative">- R$ {{ "{:,.2f}".format(seller.ajustesFinanceiros.valorTituloAberto) }}</span>
+                        </div>
+                        <div class="total-item final">
+                            <span class="label">Comissão Final:</span>
+                            <span class="value final-value">R$ {{ "{:,.2f}".format(seller.comissaoFinalConsolidada) }}</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -453,6 +539,32 @@ document.getElementById('formAjusteFaturamento').addEventListener('submit', func
     .catch(error => {
         console.error('Erro ao salvar ajuste de faturamento:', error);
         alert('Erro ao salvar ajuste de faturamento. Tente novamente.');
+    });
+});
+
+// Controle do Acordeão
+document.addEventListener('DOMContentLoaded', function() {
+    const toggles = document.querySelectorAll('.accordion-toggle');
+    toggles.forEach(toggle => {
+        toggle.addEventListener('click', function() {
+            const targetId = this.dataset.target;
+            const targetContent = document.getElementById(targetId);
+
+            // Opcional: Fechar outros acordeões abertos no mesmo card
+            const parentCard = this.closest('.seller-card');
+            parentCard.querySelectorAll('.accordion-content').forEach(content => {
+                if (content.id !== targetId) {
+                    content.style.display = 'none';
+                }
+            });
+
+            // Abrir/fechar o alvo
+            if (targetContent.style.display === 'block') {
+                targetContent.style.display = 'none';
+            } else {
+                targetContent.style.display = 'block';
+            }
+        });
     });
 });
 </script>

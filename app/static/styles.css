@@ -927,3 +927,117 @@ input:checked + .slider:before {
     transform: translateY(0);
     box-shadow: 0 2px 10px rgba(231, 76, 60, 0.3);
 }
+
+/* Estilos para o Acordeão */
+.seller-summary-consolidated {
+    padding: 20px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.accordion-controls {
+    display: flex;
+    justify-content: space-around;
+    background: #f1f3f5;
+    padding: 5px;
+}
+
+.accordion-toggle {
+    flex: 1;
+    padding: 10px;
+    background: transparent;
+    border: none;
+    border-radius: 5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    margin: 0 2px;
+}
+
+.accordion-toggle:hover {
+    background-color: #e9ecef;
+}
+
+.accordion-toggle.active {
+    background-color: #007bff;
+    color: white;
+}
+
+.accordion-content {
+    display: none;
+    padding: 20px;
+    border-top: 1px solid #e9ecef;
+    background: #fafbfc;
+}
+
+.accordion-content h3 {
+    color: #495057;
+    margin-bottom: 15px;
+    font-size: 1.2rem;
+}
+
+.accordion-content h4 {
+    color: #6c757d;
+    margin-bottom: 10px;
+    font-size: 1rem;
+}
+
+.filial-summary {
+    background: white;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    border: 1px solid #e9ecef;
+}
+
+.ajuste-section {
+    background: white;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    border: 1px solid #e9ecef;
+}
+
+.ajuste-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 10px;
+}
+
+.ajuste-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #f1f3f5;
+}
+
+.ajuste-item:last-child {
+    border-bottom: none;
+}
+
+/* Responsividade para o acordeão */
+@media (max-width: 768px) {
+    .accordion-controls {
+        flex-direction: column;
+        gap: 2px;
+    }
+    
+    .accordion-toggle {
+        margin: 0;
+        border-radius: 3px;
+    }
+    
+    .accordion-content {
+        padding: 15px;
+    }
+    
+    .filial-summary,
+    .ajuste-section {
+        padding: 10px;
+    }
+    
+    .ajuste-summary {
+        grid-template-columns: 1fr;
+    }
+}

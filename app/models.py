@@ -72,6 +72,7 @@ class DadosVendas(db.Model):
     valor_ret_merc = db.Column(db.Float, default=0.0)
     valor_titulo_aberto = db.Column(db.Float, default=0.0)
     valor_acresc_titulo_pago_mes_ant = db.Column(db.Float, default=0.0)
+    filial = db.Column(db.Integer, nullable=False, default=1)
     data_importacao = db.Column(db.DateTime, default=datetime.utcnow)
     __table_args__ = (
         db.Index('idx_mes_ano_vendedor_produto', 'mes', 'ano', 'seller_code', 'product_code'),
