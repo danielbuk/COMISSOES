@@ -549,14 +549,14 @@ def gerar_pdf_relatorio():
                 Paragraph(f"{seller['name']} ({seller_code})", styles['Normal']),
                 f"R$ {faturamento_oracle_total:,.2f}",
                 f"R$ {seller['ajusteFaturamento']['valorAjuste']:,.2f}",
-                f"R$ {seller['faturamentoFinal']:,.2f}",
+                f"R$ {seller['faturamentoTotalConsolidado']:,.2f}",
                 f"R$ {comissao_oracle_total:,.2f}",
                 f"R$ {seller['comissaoDoAjuste']:,.2f}",
                 f"R$ {seller['totalCommission']:,.2f}",
                 f"R$ {seller['ajustesFinanceiros']['valorAcrescTituloPagoMesAnt']:,.2f}",
                 f"R$ {seller['ajustesFinanceiros']['valorRetMerc']:,.2f}",
                 f"R$ {seller['ajustesFinanceiros']['valorTituloAberto']:,.2f}",
-                f"R$ {seller['comissaoFinal']:,.2f}",
+                f"R$ {seller['comissaoFinalConsolidada']:,.2f}",
             ]
             table_data.append(row)
 
@@ -604,9 +604,9 @@ def gerar_pdf_relatorio():
         story.append(Spacer(1, 10))
         
         total_vendedores = len(commission_data)
-        total_faturamento = sum(seller['faturamentoFinal'] for seller in commission_data.values())
+        total_faturamento = sum(seller['faturamentoTotalConsolidado'] for seller in commission_data.values())
         total_comissao_base = sum(seller['totalCommission'] for seller in commission_data.values())
-        total_comissao_final = sum(seller['comissaoFinal'] for seller in commission_data.values())
+        total_comissao_final = sum(seller['comissaoFinalConsolidada'] for seller in commission_data.values())
         
         summary_data = [
             ['Total de Vendedores', 'Faturamento Total', 'Comissões Base', 'Comissões Finais'],
