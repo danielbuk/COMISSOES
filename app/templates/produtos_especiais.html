@@ -1,0 +1,312 @@
+{% extends "base.html" %}
+
+{% block title %}Produtos Especiais - Sistema de Comissões{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="header">
+        <h1>📦 Cadastro de Produtos Especiais</h1>
+        <p>Gerencie produtos que possuem taxa de comissão diferente da padrão</p>
+    </div>
+
+    <div class="nav-tabs">
+        <a href="/" class="tab">🏠 Dashboard</a>
+        <a href="/cadastro" class="tab">👥 Cadastro</a>
+        <a href="/comissoes" class="tab">💰 Comissões</a>
+        <a href="/produtos-especiais" class="tab active">📦 Produtos Especiais</a>
+    </div>
+
+    <div class="form-section">
+        <h2>➕ Adicionar Novo Produto Especial</h2>
+        
+        <!-- Botão para buscar produtos do Oracle -->
+        <div class="oracle-section">
+            <button type="button" class="btn btn-info" onclick="buscarProdutosOracle()">
+                🔍 Buscar Produtos do Oracle
+            </button>
+            <small>Clique para carregar produtos disponíveis no Oracle</small>
+        </div>
+        
+        <!-- Select para escolher produto do Oracle -->
+        <div class="form-group" id="produtoOracleGroup" style="display: none;">
+            <label for="produtoOracleSelect">Selecionar Produto do Oracle:</label>
+            <select id="produtoOracleSelect" class="form-control" onchange="preencherProdutoOracle()">
+                <option value="">Selecione um produto...</option>
+            </select>
+        </div>
+        
+        <form id="produtoForm" class="form">
+            <div class="form-group">
+                <label for="codigo_produto">Código do Produto:</label>
+                <input type="text" id="codigo_produto" name="codigo_produto" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="nome_produto">Nome do Produto:</label>
+                <input type="text" id="nome_produto" name="nome_produto" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="taxa_comissao">Taxa de Comissão (%):</label>
+                <input type="number" id="taxa_comissao" name="taxa_comissao" step="0.01" min="0" max="100" required>
+            </div>
+            
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Salvar Produto</button>
+                <button type="button" class="btn btn-secondary" onclick="limparFormulario()">Limpar</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="list-section">
+        <h2>📋 Produtos Especiais Cadastrados</h2>
+        <div id="produtosList" class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Código</th>
+                        <th>Nome do Produto</th>
+                        <th>Taxa de Comissão</th>
+                        <th>Data Cadastro</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="produtosTableBody">
+                    {% for produto in produtos %}
+                    <tr data-id="{{ produto.id }}">
+                        <td>{{ produto.codigo_produto }}</td>
+                        <td>{{ produto.nome_produto }}</td>
+                        <td>{{ "%.2f"|format(produto.taxa_comissao * 100) }}%</td>
+                        <td>{{ produto.data_cadastro.strftime('%d/%m/%Y %H:%M') }}</td>
+                        <td>
+                            <button class="btn btn-sm btn-warning" onclick="editarProduto({{ produto.id }})">✏️</button>
+                            <button class="btn btn-sm btn-danger" onclick="excluirProduto({{ produto.id }})">🗑️</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+let editandoId = null;
+let produtosOracle = [];
+
+// Buscar produtos do Oracle
+function buscarProdutosOracle() {
+    const button = document.querySelector('button[onclick="buscarProdutosOracle()"]');
+    button.disabled = true;
+    button.textContent = '🔍 Buscando...';
+    
+    fetch('/api/produtos-oracle')
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            produtosOracle = data.produtos;
+            preencherSelectProdutos();
+            document.getElementById('produtoOracleGroup').style.display = 'block';
+            alert(`✅ ${produtosOracle.length} produtos encontrados no Oracle!`);
+        } else {
+            alert('❌ Erro ao buscar produtos: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Erro:', error);
+        alert('❌ Erro ao conectar com o Oracle');
+    })
+    .finally(() => {
+        button.disabled = false;
+        button.textContent = '🔍 Buscar Produtos do Oracle';
+    });
+}
+
+// Preencher select com produtos do Oracle
+function preencherSelectProdutos() {
+    const select = document.getElementById('produtoOracleSelect');
+    select.innerHTML = '<option value="">Selecione um produto...</option>';
+    
+    produtosOracle.forEach(produto => {
+        const option = document.createElement('option');
+        option.value = produto.codigo;
+        option.textContent = `${produto.codigo} - ${produto.descricao}`;
+        option.dataset.descricao = produto.descricao;
+        select.appendChild(option);
+    });
+}
+
+// Preencher formulário quando selecionar produto do Oracle
+function preencherProdutoOracle() {
+    const select = document.getElementById('produtoOracleSelect');
+    const selectedOption = select.options[select.selectedIndex];
+    
+    if (selectedOption.value) {
+        document.getElementById('codigo_produto').value = selectedOption.value;
+        document.getElementById('nome_produto').value = selectedOption.dataset.descricao;
+    }
+}
+
+document.getElementById('produtoForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = {
+        codigo_produto: document.getElementById('codigo_produto').value,
+        nome_produto: document.getElementById('nome_produto').value,
+        taxa_comissao: parseFloat(document.getElementById('taxa_comissao').value) / 100
+    };
+    
+    if (editandoId) {
+        atualizarProduto(editandoId, formData);
+    } else {
+        criarProduto(formData);
+    }
+});
+
+function criarProduto(data) {
+    fetch('/api/produtos-especiais', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            alert('Produto criado com sucesso!');
+            limparFormulario();
+            carregarProdutos();
+        } else {
+            alert('Erro: ' + result.message);
+        }
+    })
+    .catch(error => {
+        console.error('Erro:', error);
+        alert('Erro ao criar produto');
+    });
+}
+
+function atualizarProduto(id, data) {
+    fetch(`/api/produtos-especiais/${id}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            alert('Produto atualizado com sucesso!');
+            limparFormulario();
+            carregarProdutos();
+        } else {
+            alert('Erro: ' + result.message);
+        }
+    })
+    .catch(error => {
+        console.error('Erro:', error);
+        alert('Erro ao atualizar produto');
+    });
+}
+
+function editarProduto(id) {
+    const row = document.querySelector(`tr[data-id="${id}"]`);
+    const cells = row.cells;
+    
+    document.getElementById('codigo_produto').value = cells[0].textContent;
+    document.getElementById('nome_produto').value = cells[1].textContent;
+    document.getElementById('taxa_comissao').value = parseFloat(cells[2].textContent.replace('%', ''));
+    
+    editandoId = id;
+    document.querySelector('button[type="submit"]').textContent = 'Atualizar Produto';
+}
+
+function excluirProduto(id) {
+    if (confirm('Tem certeza que deseja excluir este produto?')) {
+        fetch(`/api/produtos-especiais/${id}`, {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                alert('Produto excluído com sucesso!');
+                carregarProdutos();
+            } else {
+                alert('Erro: ' + result.message);
+            }
+        })
+        .catch(error => {
+            console.error('Erro:', error);
+            alert('Erro ao excluir produto');
+        });
+    }
+}
+
+function limparFormulario() {
+    document.getElementById('produtoForm').reset();
+    editandoId = null;
+    document.querySelector('button[type="submit"]').textContent = 'Salvar Produto';
+}
+
+function carregarProdutos() {
+    fetch('/api/produtos-especiais')
+    .then(response => response.json())
+    .then(produtos => {
+        const tbody = document.getElementById('produtosTableBody');
+        tbody.innerHTML = '';
+        
+        produtos.forEach(produto => {
+            const row = document.createElement('tr');
+            row.setAttribute('data-id', produto.id);
+            row.innerHTML = `
+                <td>${produto.codigo_produto}</td>
+                <td>${produto.nome_produto}</td>
+                <td>${(produto.taxa_comissao * 100).toFixed(2)}%</td>
+                <td>${produto.data_cadastro}</td>
+                <td>
+                    <button class="btn btn-sm btn-warning" onclick="editarProduto(${produto.id})">✏️</button>
+                    <button class="btn btn-sm btn-danger" onclick="excluirProduto(${produto.id})">🗑️</button>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+    })
+    .catch(error => {
+        console.error('Erro ao carregar produtos:', error);
+    });
+}
+</script>
+
+<style>
+.oracle-section {
+    background: #e3f2fd;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    border-left: 4px solid #2196f3;
+}
+
+.oracle-section button {
+    margin-bottom: 5px;
+}
+
+.oracle-section small {
+    color: #666;
+    display: block;
+}
+
+#produtoOracleGroup {
+    background: #f5f5f5;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    border-left: 4px solid #4caf50;
+}
+
+#produtoOracleSelect {
+    max-width: 100%;
+}
+</style>
+{% endblock %}

@@ -38,6 +38,14 @@ class RegraComissao(db.Model):
         db.UniqueConstraint('vendedor_rca', 'codigo_produto', name='uq_vendedor_produto'),
     )
 
+class ProdutoEspecial(db.Model):
+    """Modelo para produtos com comissão especial"""
+    id = db.Column(db.Integer, primary_key=True)
+    codigo_produto = db.Column(db.String(50), nullable=False, unique=True)
+    nome_produto = db.Column(db.String(255), nullable=False)
+    taxa_comissao = db.Column(db.Float, nullable=False)
+    data_cadastro = db.Column(db.DateTime, default=datetime.utcnow)
+
 class DadosVendas(db.Model):
     """Modelo para armazenar dados de vendas em cache local"""
     id = db.Column(db.Integer, primary_key=True)

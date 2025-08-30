@@ -1,7 +1,7 @@
 import pandas as pd
 import oracledb
 from flask import current_app
-from .models import Vendedor, RegraComissao, ComissaoPadrao, DadosVendas
+from .models import Vendedor, RegraComissao, ComissaoPadrao, DadosVendas, TipoVendedor, ProdutoEspecial
 from . import db
 from datetime import datetime
 import os
@@ -51,7 +51,7 @@ def fetch_sales_data_from_oracle(mes, ano):
                 'NOME_VENDEDOR': 'sellerName',
                 'CODIGO_PRODUTO': 'productCode',
                 'DESCRICAO_PRODUTO': 'productDesc',
-                'FATURAMENTO': 'revenue',
+                'FATURAMENTO_LIQUIDO': 'revenue',  # Usando FATURAMENTO_LIQUIDO para ficar certinho
                 'DEVOLUCAO': 'valorRetMerc',
                 'CUSTO_FIN_FAT': 'valorTituloAberto',
                 'CUSTO_FIN_DEV': 'valorAcrescTituloPagoMesAnt'
@@ -65,22 +65,49 @@ def fetch_sales_data_from_oracle(mes, ano):
             for col in numeric_cols:
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
             
+            # Garantir que os nomes dos vendedores não estejam vazios
+            df['sellerName'] = df['sellerName'].fillna('Vendedor Desconhecido')
+            
+            print(f"Dados do Oracle carregados: {len(df)} registros")
+            print(f"Vendedores únicos: {df['sellerCode'].nunique()}")
+            print(f"Primeiros nomes de vendedores: {df['sellerName'].head().tolist()}")
+            
             return df
     except Exception as e:
         print(f"Erro ao conectar ou buscar dados do Oracle: {e}")
         return pd.DataFrame()
 
 def save_sales_data_to_cache(df, mes, ano):
-    """Salva os dados do DataFrame no cache local"""
+    """Salva os dados do DataFrame no cache local e atualiza nomes de vendedores."""
     if df.empty:
         return False
     
     try:
         # Primeiro, remove dados existentes para este mês/ano
         DadosVendas.query.filter_by(mes=mes, ano=ano).delete()
+        
+        # APAGA TODOS os vendedores existentes e adiciona apenas os do Oracle
+        print("🗑️ Apagando todos os vendedores existentes...")
+        Vendedor.query.delete()
+        
+        # Adiciona apenas os vendedores que vêm do Oracle
+        vendedores_no_df = df[['sellerCode', 'sellerName']].drop_duplicates().to_dict('records')
+        print(f"➕ Adicionando {len(vendedores_no_df)} vendedores do Oracle:")
+        
+        for v_data in vendedores_no_df:
+            print(f"   - RCA {v_data['sellerCode']}: {v_data['sellerName']}")
+            novo_vendedor = Vendedor(
+                rca=v_data['sellerCode'], 
+                nome=v_data['sellerName'],
+                tipo=TipoVendedor.EXTERNO,
+                is_cooperativa=False,
+                ignorar_no_relatorio=False
+            )
+            db.session.add(novo_vendedor)
+
         db.session.commit()
         
-        # Insere os novos dados
+        # Insere os novos dados de vendas
         for _, row in df.iterrows():
             dados = DadosVendas(
                 mes=mes,
@@ -131,7 +158,7 @@ def get_sales_data_from_cache(mes, ano):
 
 def import_month_data(mes, ano):
     """Importa dados de um mês específico do Oracle para o cache local"""
-    print(f"Importando dados para {mes}/{ano}...")
+    print(f"🔄 Importando dados para {mes}/{ano}...")
     
     # Busca dados do Oracle
     df = fetch_sales_data_from_oracle(mes, ano)
@@ -139,13 +166,20 @@ def import_month_data(mes, ano):
     if df.empty:
         return False, "Nenhum dado encontrado no Oracle para este período"
     
+    print(f"📊 Encontrados {len(df)} registros no Oracle")
+    print(f"👥 Vendedores únicos encontrados: {df['sellerCode'].nunique()}")
+    print(f"📋 Lista de vendedores do Oracle:")
+    vendedores_unicos = df[['sellerCode', 'sellerName']].drop_duplicates().sort_values('sellerCode')
+    for _, v in vendedores_unicos.iterrows():
+        print(f"   - RCA {v['sellerCode']}: {v['sellerName']}")
+    
     # Salva no cache local
     success = save_sales_data_to_cache(df, mes, ano)
     
     if success:
-        return True, f"Dados importados com sucesso: {len(df)} registros"
+        return True, f"✅ Dados importados com sucesso: {len(df)} registros"
     else:
-        return False, "Erro ao salvar dados no cache local"
+        return False, "❌ Erro ao salvar dados no cache local"
 
 def get_available_months():
     """Retorna lista de meses/anos disponíveis no cache"""
@@ -169,7 +203,12 @@ def get_commission_rate(vendedor_rca, product_code):
     if rule:
         return rule.taxa_comissao
 
-    # 2. Regra por Produto (aplica-se a todos os vendedores)
+    # 2. Produto especial (aplica-se a todos os vendedores)
+    produto_especial = session.query(ProdutoEspecial).filter_by(codigo_produto=product_code).first()
+    if produto_especial:
+        return produto_especial.taxa_comissao
+
+    # 3. Regra por Produto (aplica-se a todos os vendedores) - mantido para compatibilidade
     rule = session.query(RegraComissao).filter_by(
         vendedor_rca=None, 
         codigo_produto=product_code
@@ -177,12 +216,12 @@ def get_commission_rate(vendedor_rca, product_code):
     if rule:
         return rule.taxa_comissao
 
-    # 3. Comissão padrão do vendedor
+    # 4. Comissão padrão do vendedor
     comissao_padrao = session.query(ComissaoPadrao).filter_by(vendedor_rca=vendedor_rca).first()
     if comissao_padrao:
         return comissao_padrao.taxa_comissao
         
-    # 4. Taxa padrão fallback (não deveria acontecer se o banco estiver bem populado)
+    # 5. Taxa padrão fallback (não deveria acontecer se o banco estiver bem populado)
     return 0.015
 
 def process_commissions(mes=None, ano=None):
@@ -217,37 +256,40 @@ def process_commissions(mes=None, ano=None):
     
     seller_data = {}
     
-    # Produtos especiais que devem ser listados individualmente
-    produtos_especiais_cod = [r.codigo_produto for r in RegraComissao.query.filter(
+    # Produtos com comissão modificada (produtos especiais + regras específicas)
+    produtos_especiais_cod = [p.codigo_produto for p in ProdutoEspecial.query.all()]
+    regras_especiais_cod = [r.codigo_produto for r in RegraComissao.query.filter(
         RegraComissao.vendedor_rca == None, 
         RegraComissao.codigo_produto != None
     ).all()]
-    
-    # Produtos PEPSICO para Michelle (RCA 83)
-    produtos_pepsico_cod = [r.codigo_produto for r in RegraComissao.query.filter_by(vendedor_rca=83).all() if r.codigo_produto]
+    produtos_comissao_modificada = list(set(produtos_especiais_cod + regras_especiais_cod))
 
     for seller_code, group in grouped:
         seller_info = Vendedor.query.filter_by(rca=seller_code).first()
         if not seller_info:
             continue
+
+        # Pega o nome do vendedor do DataFrame, que veio do Oracle
+        seller_name = group['sellerName'].iloc[0] if not group.empty else seller_info.nome
             
-        # Separar produtos
-        produtos_pepsico = group[group['productCode'].isin(produtos_pepsico_cod)] if seller_code == 83 else pd.DataFrame()
-        produtos_detalhados = group[group['productCode'].isin(produtos_especiais_cod)]
-        outros_produtos = group[~group.index.isin(produtos_detalhados.index) & ~group.index.isin(produtos_pepsico.index)]
+        # Separar produtos em apenas duas categorias
+        produtos_comissao_modificada_df = group[group['productCode'].isin(produtos_comissao_modificada)]
+        outros_produtos = group[~group['productCode'].isin(produtos_comissao_modificada)]
 
         seller_data[seller_code] = {
-            'name': seller_info.nome,
+            'name': seller_name,
             'type': seller_info.tipo.value,
             'is_cooperativa': seller_info.is_cooperativa,
             'totalRevenue': group['revenue'].sum(),
             'details': {
-                'pepsico': {
-                    'revenue': produtos_pepsico['revenue'].sum() if not produtos_pepsico.empty else 0,
-                    'commission': produtos_pepsico['commission'].sum() if not produtos_pepsico.empty else 0
+                'produtos_comissao_modificada': {
+                    'revenue': produtos_comissao_modificada_df['revenue'].sum() if not produtos_comissao_modificada_df.empty else 0,
+                    'commission': produtos_comissao_modificada_df['commission'].sum() if not produtos_comissao_modificada_df.empty else 0,
+                    'valorRetMerc': produtos_comissao_modificada_df['valorRetMerc'].sum() if not produtos_comissao_modificada_df.empty else 0,
+                    'valorTituloAberto': produtos_comissao_modificada_df['valorTituloAberto'].sum() if not produtos_comissao_modificada_df.empty else 0,
+                    'valorAcrescTituloPagoMesAnt': produtos_comissao_modificada_df['valorAcrescTituloPagoMesAnt'].sum() if not produtos_comissao_modificada_df.empty else 0,
                 },
-                'detailed_products': produtos_detalhados.to_dict('records') if not produtos_detalhados.empty else [],
-                'other_products': {
+                'outros_produtos': {
                     'revenue': outros_produtos['revenue'].sum() if not outros_produtos.empty else 0,
                     'commission': outros_produtos['commission'].sum() if not outros_produtos.empty else 0,
                     'valorRetMerc': outros_produtos['valorRetMerc'].sum() if not outros_produtos.empty else 0,

@@ -16,6 +16,7 @@
         <a href="/" class="tab">🏠 Dashboard</a>
         <a href="/cadastro" class="tab">👥 Cadastro</a>
         <a href="/comissoes" class="tab">💰 Comissões</a>
+        <a href="/produtos-especiais" class="tab">📦 Produtos Especiais</a>
         <a href="/relatorio?mes={{ mes }}&ano={{ ano }}" class="tab active">📊 Relatório</a>
     </div>
 
@@ -30,11 +31,11 @@
                     </div>
                     <div class="stat">
                         <span class="stat-label">Faturamento Total:</span>
-                        <span class="stat-value">R$ {{ "%.2f"|format(sellers.values()|sum(attribute='totalRevenue')) }}</span>
+                        <span class="stat-value">R$ {{ "{:,.2f}".format(sellers.values()|sum(attribute='totalRevenue')) }}</span>
                     </div>
                     <div class="stat">
                         <span class="stat-label">Comissões Totais:</span>
-                        <span class="stat-value">R$ {{ "%.2f"|format(sellers.values()|sum(attribute='totalCommission')) }}</span>
+                        <span class="stat-value">R$ {{ "{:,.2f}".format(sellers.values()|sum(attribute='totalCommission')) }}</span>
                     </div>
                 </div>
             </div>
@@ -57,85 +58,68 @@
                 <div class="summary-row">
                     <div class="summary-item">
                         <span class="label">Faturamento Total:</span>
-                        <span class="value">R$ {{ "%.2f"|format(seller.totalRevenue) }}</span>
+                        <span class="value">R$ {{ "{:,.2f}".format(seller.totalRevenue) }}</span>
                     </div>
                     <div class="summary-item">
                         <span class="label">Comissão Total:</span>
-                        <span class="value">R$ {{ "%.2f"|format(seller.totalCommission) }}</span>
+                        <span class="value">R$ {{ "{:,.2f}".format(seller.totalCommission) }}</span>
                     </div>
                 </div>
             </div>
 
-            <!-- Produtos PEPSICO (apenas para Michelle - RCA 83) -->
-            {% if seller_code == 83 and seller.details.pepsico.revenue > 0 %}
+            <!-- Produtos com Comissão Modificada -->
+            {% if seller.details.produtos_comissao_modificada.revenue > 0 %}
             <div class="product-section">
-                <h3>🍹 Produtos PEPSICO</h3>
+                <h3>🎯 PRODUTOS COM COMISSÃO MODIFICADA</h3>
                 <div class="product-summary">
                     <div class="product-item">
-                        <span class="label">Faturamento PEPSICO:</span>
-                        <span class="value">R$ {{ "%.2f"|format(seller.details.pepsico.revenue) }}</span>
+                        <span class="label">Faturamento:</span>
+                        <span class="value">R$ {{ "{:,.2f}".format(seller.details.produtos_comissao_modificada.revenue) }}</span>
                     </div>
                     <div class="product-item">
-                        <span class="label">Comissão PEPSICO:</span>
-                        <span class="value">R$ {{ "%.2f"|format(seller.details.pepsico.commission) }}</span>
+                        <span class="label">Comissão:</span>
+                        <span class="value">R$ {{ "{:,.2f}".format(seller.details.produtos_comissao_modificada.commission) }}</span>
                     </div>
-                </div>
-            </div>
-            {% endif %}
-
-            <!-- Produtos Detalhados -->
-            {% if seller.details.detailed_products %}
-            <div class="product-section">
-                <h3>📋 Produtos Detalhados</h3>
-                <div class="product-table">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Código</th>
-                                <th>Descrição</th>
-                                <th>Faturamento</th>
-                                <th>Comissão</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for product in seller.details.detailed_products %}
-                            <tr>
-                                <td>{{ product.productCode }}</td>
-                                <td>{{ product.productDesc }}</td>
-                                <td>R$ {{ "%.2f"|format(product.revenue) }}</td>
-                                <td>R$ {{ "%.2f"|format(product.commission) }}</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+                    <div class="product-item">
+                        <span class="label">Valor Ret. Merc.:</span>
+                        <span class="value">R$ {{ "{:,.2f}".format(seller.details.produtos_comissao_modificada.valorRetMerc) }}</span>
+                    </div>
+                    <div class="product-item">
+                        <span class="label">Valor Título Aberto:</span>
+                        <span class="value">R$ {{ "{:,.2f}".format(seller.details.produtos_comissao_modificada.valorTituloAberto) }}</span>
+                    </div>
+                    <div class="product-item">
+                        <span class="label">Valor Acrésc. Título Pago Mês Ant.:</span>
+                        <span class="value">R$ {{ "{:,.2f}".format(seller.details.produtos_comissao_modificada.valorAcrescTituloPagoMesAnt) }}</span>
+                    </div>
                 </div>
             </div>
             {% endif %}
 
             <!-- Outros Produtos -->
-            {% if seller.details.other_products.revenue > 0 %}
+            {% if seller.details.outros_produtos.revenue > 0 %}
             <div class="product-section">
-                <h3>📦 Outros Produtos</h3>
+                <h3>📦 OUTROS PRODUTOS</h3>
                 <div class="product-summary">
                     <div class="product-item">
                         <span class="label">Faturamento:</span>
-                        <span class="value">R$ {{ "%.2f"|format(seller.details.other_products.revenue) }}</span>
+                        <span class="value">R$ {{ "{:,.2f}".format(seller.details.outros_produtos.revenue) }}</span>
                     </div>
                     <div class="product-item">
                         <span class="label">Comissão:</span>
-                        <span class="value">R$ {{ "%.2f"|format(seller.details.other_products.commission) }}</span>
+                        <span class="value">R$ {{ "{:,.2f}".format(seller.details.outros_produtos.commission) }}</span>
                     </div>
                     <div class="product-item">
                         <span class="label">Valor Ret. Merc.:</span>
-                        <span class="value">R$ {{ "%.2f"|format(seller.details.other_products.valorRetMerc) }}</span>
+                        <span class="value">R$ {{ "{:,.2f}".format(seller.details.outros_produtos.valorRetMerc) }}</span>
                     </div>
                     <div class="product-item">
                         <span class="label">Valor Título Aberto:</span>
-                        <span class="value">R$ {{ "%.2f"|format(seller.details.other_products.valorTituloAberto) }}</span>
+                        <span class="value">R$ {{ "{:,.2f}".format(seller.details.outros_produtos.valorTituloAberto) }}</span>
                     </div>
                     <div class="product-item">
                         <span class="label">Valor Acrésc. Título Pago Mês Ant.:</span>
-                        <span class="value">R$ {{ "%.2f"|format(seller.details.other_products.valorAcrescTituloPagoMesAnt) }}</span>
+                        <span class="value">R$ {{ "{:,.2f}".format(seller.details.outros_produtos.valorAcrescTituloPagoMesAnt) }}</span>
                     </div>
                 </div>
             </div>

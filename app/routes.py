@@ -1,7 +1,7 @@
 from flask import render_template, request, jsonify, redirect, url_for
 from . import app
 from .services import process_commissions, import_month_data, get_available_months
-from .models import Vendedor, RegraComissao, ComissaoPadrao, db
+from .models import Vendedor, RegraComissao, ComissaoPadrao, ProdutoEspecial, db
 from datetime import datetime
 
 @app.route('/')
@@ -194,6 +194,132 @@ def delete_regra_comissao(regra_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': f'Erro ao deletar: {str(e)}'}), 500
+
+@app.route('/produtos-especiais')
+def produtos_especiais():
+    """Página de cadastro de produtos especiais"""
+    produtos = ProdutoEspecial.query.order_by(ProdutoEspecial.nome_produto).all()
+    return render_template('produtos_especiais.html', produtos=produtos)
+
+@app.route('/api/produtos-especiais', methods=['GET'])
+def get_produtos_especiais():
+    """API para buscar produtos especiais"""
+    produtos = ProdutoEspecial.query.order_by(ProdutoEspecial.nome_produto).all()
+    return jsonify([{
+        'id': p.id,
+        'codigo_produto': p.codigo_produto,
+        'nome_produto': p.nome_produto,
+        'taxa_comissao': p.taxa_comissao,
+        'data_cadastro': p.data_cadastro.strftime('%d/%m/%Y %H:%M')
+    } for p in produtos])
+
+@app.route('/api/produtos-especiais', methods=['POST'])
+def create_produto_especial():
+    """API para criar novo produto especial"""
+    try:
+        data = request.get_json()
+        
+        # Verifica se já existe um produto com este código
+        existing = ProdutoEspecial.query.filter_by(codigo_produto=data['codigo_produto']).first()
+        if existing:
+            return jsonify({'success': False, 'message': 'Já existe um produto com este código'}), 400
+        
+        produto = ProdutoEspecial(
+            codigo_produto=data['codigo_produto'],
+            nome_produto=data['nome_produto'],
+            taxa_comissao=float(data['taxa_comissao'])
+        )
+        
+        db.session.add(produto)
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': 'Produto especial criado com sucesso'})
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': f'Erro ao criar: {str(e)}'}), 500
+
+@app.route('/api/produtos-especiais/<int:produto_id>', methods=['PUT'])
+def update_produto_especial(produto_id):
+    """API para atualizar produto especial"""
+    try:
+        data = request.get_json()
+        produto = ProdutoEspecial.query.get(produto_id)
+        
+        if not produto:
+            return jsonify({'success': False, 'message': 'Produto não encontrado'}), 404
+        
+        # Verifica se o código já existe em outro produto
+        if 'codigo_produto' in data and data['codigo_produto'] != produto.codigo_produto:
+            existing = ProdutoEspecial.query.filter_by(codigo_produto=data['codigo_produto']).first()
+            if existing:
+                return jsonify({'success': False, 'message': 'Já existe um produto com este código'}), 400
+        
+        # Atualiza os campos
+        if 'codigo_produto' in data:
+            produto.codigo_produto = data['codigo_produto']
+        if 'nome_produto' in data:
+            produto.nome_produto = data['nome_produto']
+        if 'taxa_comissao' in data:
+            produto.taxa_comissao = float(data['taxa_comissao'])
+        
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Produto especial atualizado com sucesso'})
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': f'Erro ao atualizar: {str(e)}'}), 500
+
+@app.route('/api/produtos-especiais/<int:produto_id>', methods=['DELETE'])
+def delete_produto_especial(produto_id):
+    """API para deletar produto especial"""
+    try:
+        produto = ProdutoEspecial.query.get(produto_id)
+        
+        if not produto:
+            return jsonify({'success': False, 'message': 'Produto não encontrado'}), 404
+        
+        db.session.delete(produto)
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': 'Produto especial deletado com sucesso'})
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': f'Erro ao deletar: {str(e)}'}), 500
+
+@app.route('/api/produtos-oracle')
+def get_produtos_oracle():
+    """API para buscar produtos únicos do Oracle"""
+    try:
+        import oracledb
+        from flask import current_app
+        
+        config = current_app.config
+        with oracledb.connect(user=config['ORACLE_USER'], password=config['ORACLE_PASSWORD'], dsn=config['ORACLE_DSN']) as connection:
+            # Query para buscar produtos únicos
+            query = """
+            SELECT DISTINCT CODIGO_PRODUTO, DESCRICAO_PRODUTO 
+            FROM DADOS_FATURAMENTO 
+            WHERE CODIGO_PRODUTO IS NOT NULL 
+            AND DESCRICAO_PRODUTO IS NOT NULL
+            ORDER BY CODIGO_PRODUTO
+            """
+            
+            cursor = connection.cursor()
+            cursor.execute(query)
+            produtos = []
+            
+            for row in cursor.fetchall():
+                produtos.append({
+                    'codigo': str(row[0]),
+                    'descricao': str(row[1])
+                })
+            
+            return jsonify({'success': True, 'produtos': produtos})
+            
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Erro ao buscar produtos: {str(e)}'}), 500
 
 @app.route('/api/meses-disponiveis')
 def api_available_months():
