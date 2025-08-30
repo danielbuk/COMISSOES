@@ -34,8 +34,12 @@
                         <span class="stat-value">R$ {{ "{:,.2f}".format(sellers.values()|sum(attribute='totalRevenue')) }}</span>
                     </div>
                     <div class="stat">
-                        <span class="stat-label">Comissões Totais:</span>
+                        <span class="stat-label">Comissões Base:</span>
                         <span class="stat-value">R$ {{ "{:,.2f}".format(sellers.values()|sum(attribute='totalCommission')) }}</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">Comissões Finais:</span>
+                        <span class="stat-value">R$ {{ "{:,.2f}".format(sellers.values()|sum(attribute='comissaoFinal')) }}</span>
                     </div>
                 </div>
             </div>
@@ -51,6 +55,13 @@
                     {% if seller.is_cooperativa %}
                         <span class="badge badge-danger">Cooperativa</span>
                     {% endif %}
+                    <button class="btn btn-sm btn-outline-primary ajuste-btn" 
+                            data-rca="{{ seller_code }}" 
+                            data-nome="{{ seller.name }}" 
+                            data-mes="{{ mes }}" 
+                            data-ano="{{ ano }}">
+                        ✏️ Ajustes Financeiros
+                    </button>
                 </div>
             </div>
 
@@ -61,8 +72,8 @@
                         <span class="value">R$ {{ "{:,.2f}".format(seller.totalRevenue) }}</span>
                     </div>
                     <div class="summary-item">
-                        <span class="label">Comissão Total:</span>
-                        <span class="value">R$ {{ "{:,.2f}".format(seller.totalCommission) }}</span>
+                        <span class="label">Comissão Final:</span>
+                        <span class="value">R$ {{ "{:,.2f}".format(seller.comissaoFinal) }}</span>
                     </div>
                 </div>
             </div>
@@ -79,18 +90,6 @@
                     <div class="product-item">
                         <span class="label">Comissão:</span>
                         <span class="value">R$ {{ "{:,.2f}".format(seller.details.produtos_comissao_modificada.commission) }}</span>
-                    </div>
-                    <div class="product-item">
-                        <span class="label">Valor Ret. Merc.:</span>
-                        <span class="value">R$ {{ "{:,.2f}".format(seller.details.produtos_comissao_modificada.valorRetMerc) }}</span>
-                    </div>
-                    <div class="product-item">
-                        <span class="label">Valor Título Aberto:</span>
-                        <span class="value">R$ {{ "{:,.2f}".format(seller.details.produtos_comissao_modificada.valorTituloAberto) }}</span>
-                    </div>
-                    <div class="product-item">
-                        <span class="label">Valor Acrésc. Título Pago Mês Ant.:</span>
-                        <span class="value">R$ {{ "{:,.2f}".format(seller.details.produtos_comissao_modificada.valorAcrescTituloPagoMesAnt) }}</span>
                     </div>
                 </div>
             </div>
@@ -109,21 +108,36 @@
                         <span class="label">Comissão:</span>
                         <span class="value">R$ {{ "{:,.2f}".format(seller.details.outros_produtos.commission) }}</span>
                     </div>
-                    <div class="product-item">
-                        <span class="label">Valor Ret. Merc.:</span>
-                        <span class="value">R$ {{ "{:,.2f}".format(seller.details.outros_produtos.valorRetMerc) }}</span>
-                    </div>
-                    <div class="product-item">
-                        <span class="label">Valor Título Aberto:</span>
-                        <span class="value">R$ {{ "{:,.2f}".format(seller.details.outros_produtos.valorTituloAberto) }}</span>
-                    </div>
-                    <div class="product-item">
-                        <span class="label">Valor Acrésc. Título Pago Mês Ant.:</span>
-                        <span class="value">R$ {{ "{:,.2f}".format(seller.details.outros_produtos.valorAcrescTituloPagoMesAnt) }}</span>
-                    </div>
                 </div>
             </div>
             {% endif %}
+
+            <!-- Seção de Totais e Ajustes Financeiros -->
+            <div class="totals-section">
+                <h3>💰 TOTAIS E AJUSTES FINANCEIROS</h3>
+                <div class="totals-summary">
+                    <div class="total-item">
+                        <span class="label">Comissão Total (Base):</span>
+                        <span class="value">R$ {{ "{:,.2f}".format(seller.totalCommission) }}</span>
+                    </div>
+                    <div class="total-item">
+                        <span class="label">Valor Acrésc. Título Pago Mês Ant.:</span>
+                        <span class="value positive">+ R$ {{ "{:,.2f}".format(seller.ajustesFinanceiros.valorAcrescTituloPagoMesAnt) }}</span>
+                    </div>
+                    <div class="total-item">
+                        <span class="label">Valor Ret. Merc. (Devolução):</span>
+                        <span class="value negative">- R$ {{ "{:,.2f}".format(seller.ajustesFinanceiros.valorRetMerc) }}</span>
+                    </div>
+                    <div class="total-item">
+                        <span class="label">Valor Título Aberto:</span>
+                        <span class="value negative">- R$ {{ "{:,.2f}".format(seller.ajustesFinanceiros.valorTituloAberto) }}</span>
+                    </div>
+                    <div class="total-item final">
+                        <span class="label">Comissão Final:</span>
+                        <span class="value final-value">R$ {{ "{:,.2f}".format(seller.comissaoFinal) }}</span>
+                    </div>
+                </div>
+            </div>
         </div>
         {% endfor %}
     {% else %}
@@ -139,4 +153,137 @@
         <a href="/" class="btn btn-secondary">Voltar</a>
     </div>
 </div>
+
+<!-- Modal de Ajustes Financeiros -->
+<div id="modalAjuste" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="modalTitle">Ajustes Financeiros</h3>
+            <span class="close">&times;</span>
+        </div>
+        <div class="modal-body">
+            <form id="formAjuste">
+                <div class="form-group">
+                    <label for="valorTituloAberto">Valor Título em Aberto:</label>
+                    <input type="number" id="valorTituloAberto" name="valorTituloAberto" step="0.01" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="valorRetMerc">Valor Ret. Merc. (Devolução):</label>
+                    <input type="number" id="valorRetMerc" name="valorRetMerc" step="0.01" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="valorAcrescTituloPagoMesAnt">Valor Acrésc. Título Pago Mês Ant.:</label>
+                    <input type="number" id="valorAcrescTituloPagoMesAnt" name="valorAcrescTituloPagoMesAnt" step="0.01" class="form-control" required>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Salvar Ajustes</button>
+                    <button type="button" class="btn btn-secondary" onclick="fecharModal()">Cancelar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// Variáveis globais para o modal
+let currentRca = null;
+let currentMes = null;
+let currentAno = null;
+
+// Adicionar event listeners aos botões de ajuste
+document.addEventListener('DOMContentLoaded', function() {
+    const ajusteBtns = document.querySelectorAll('.ajuste-btn');
+    ajusteBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const rca = this.getAttribute('data-rca');
+            const nome = this.getAttribute('data-nome');
+            const mes = this.getAttribute('data-mes');
+            const ano = this.getAttribute('data-ano');
+            abrirModalAjuste(rca, nome, mes, ano);
+        });
+    });
+});
+
+function abrirModalAjuste(rca, nome, mes, ano) {
+    currentRca = rca;
+    currentMes = mes;
+    currentAno = ano;
+    
+    // Atualizar título do modal
+    document.getElementById('modalTitle').textContent = `Ajustes Financeiros para ${nome} - ${mes}/${ano}`;
+    
+    // Buscar dados existentes
+    fetch(`/api/ajuste-financeiro/${rca}/${ano}/${mes}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById('valorTituloAberto').value = data.ajuste.valor_titulo_aberto;
+                document.getElementById('valorRetMerc').value = data.ajuste.valor_ret_merc;
+                document.getElementById('valorAcrescTituloPagoMesAnt').value = data.ajuste.valor_acresc_titulo_pago_mes_ant;
+            }
+        })
+        .catch(error => {
+            console.error('Erro ao buscar ajustes:', error);
+            // Limpar campos em caso de erro
+            document.getElementById('valorTituloAberto').value = 0;
+            document.getElementById('valorRetMerc').value = 0;
+            document.getElementById('valorAcrescTituloPagoMesAnt').value = 0;
+        });
+    
+    // Mostrar modal
+    document.getElementById('modalAjuste').style.display = 'block';
+}
+
+function fecharModal() {
+    document.getElementById('modalAjuste').style.display = 'none';
+}
+
+// Fechar modal ao clicar no X
+document.querySelector('.close').addEventListener('click', fecharModal);
+
+// Fechar modal ao clicar fora dele
+window.addEventListener('click', function(event) {
+    const modal = document.getElementById('modalAjuste');
+    if (event.target === modal) {
+        fecharModal();
+    }
+});
+
+// Submissão do formulário
+document.getElementById('formAjuste').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = {
+        vendedor_rca: parseInt(currentRca),
+        mes: parseInt(currentMes),
+        ano: parseInt(currentAno),
+        valor_titulo_aberto: parseFloat(document.getElementById('valorTituloAberto').value),
+        valor_ret_merc: parseFloat(document.getElementById('valorRetMerc').value),
+        valor_acresc_titulo_pago_mes_ant: parseFloat(document.getElementById('valorAcrescTituloPagoMesAnt').value)
+    };
+    
+    fetch('/api/ajuste-financeiro', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Ajustes salvos com sucesso!');
+            fecharModal();
+            // Recarregar a página para atualizar os valores
+            window.location.reload();
+        } else {
+            alert('Erro ao salvar ajustes: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Erro ao salvar ajustes:', error);
+        alert('Erro ao salvar ajustes. Tente novamente.');
+    });
+});
+</script>
 {% endblock %}

@@ -4,30 +4,27 @@ Script para atualizar o banco de dados com a nova tabela ProdutoOracleCache
 """
 
 from app import create_app, db
-from app.models import ProdutoOracleCache
+from app.models import Vendedor, RegraComissao, ComissaoPadrao, ProdutoEspecial, DadosVendas, ProdutoOracleCache, AjusteFinanceiro
 
 def update_database():
-    """Atualiza o banco de dados criando a nova tabela"""
+    """Atualiza o banco de dados criando todas as tabelas necessárias"""
     app = create_app()
     
     with app.app_context():
-        try:
-            # Cria a nova tabela ProdutoOracleCache
-            db.create_all()
-            print("✅ Tabela ProdutoOracleCache criada com sucesso!")
-            
-            # Verifica se a tabela foi criada
-            from sqlalchemy import inspect
-            inspector = inspect(db.engine)
-            tabelas = inspector.get_table_names()
-            
-            if 'produto_oracle_cache' in tabelas:
-                print("✅ Tabela 'produto_oracle_cache' encontrada no banco de dados")
-            else:
-                print("❌ Tabela 'produto_oracle_cache' não foi encontrada")
-                
-        except Exception as e:
-            print(f"❌ Erro ao criar tabela: {str(e)}")
+        print("🔄 Atualizando banco de dados...")
+        
+        # Criar todas as tabelas
+        db.create_all()
+        
+        print("✅ Banco de dados atualizado com sucesso!")
+        print("📋 Tabelas criadas:")
+        print("   - vendedor")
+        print("   - regra_comissao")
+        print("   - comissao_padrao")
+        print("   - produto_especial")
+        print("   - dados_vendas")
+        print("   - produto_oracle_cache")
+        print("   - ajuste_financeiro")
 
 if __name__ == '__main__':
     update_database()

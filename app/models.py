@@ -76,3 +76,24 @@ class DadosVendas(db.Model):
     __table_args__ = (
         db.Index('idx_mes_ano_vendedor_produto', 'mes', 'ano', 'seller_code', 'product_code'),
     )
+
+class AjusteFinanceiro(db.Model):
+    """Modelo para armazenar ajustes financeiros manuais por vendedor e período"""
+    id = db.Column(db.Integer, primary_key=True)
+    vendedor_rca = db.Column(db.Integer, db.ForeignKey('vendedor.rca'), nullable=False)
+    mes = db.Column(db.Integer, nullable=False)
+    ano = db.Column(db.Integer, nullable=False)
+    valor_titulo_aberto = db.Column(db.Float, default=0.0)
+    valor_ret_merc = db.Column(db.Float, default=0.0)
+    valor_acresc_titulo_pago_mes_ant = db.Column(db.Float, default=0.0)
+    data_criacao = db.Column(db.DateTime, default=datetime.utcnow)
+    data_atualizacao = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relacionamento
+    vendedor = db.relationship('Vendedor', backref='ajustes_financeiros')
+    
+    # Índice único para evitar duplicatas por vendedor/período
+    __table_args__ = (
+        db.UniqueConstraint('vendedor_rca', 'mes', 'ano', name='uq_vendedor_mes_ano'),
+        db.Index('idx_vendedor_mes_ano', 'vendedor_rca', 'mes', 'ano'),
+    )

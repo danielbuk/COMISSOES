@@ -1,7 +1,7 @@
 import pandas as pd
 import oracledb
 from flask import current_app
-from .models import Vendedor, RegraComissao, ComissaoPadrao, DadosVendas, TipoVendedor, ProdutoEspecial, ProdutoOracleCache
+from .models import Vendedor, RegraComissao, ComissaoPadrao, DadosVendas, TipoVendedor, ProdutoEspecial, ProdutoOracleCache, AjusteFinanceiro
 from . import db
 from datetime import datetime
 import os
@@ -271,11 +271,36 @@ def process_commissions(mes=None, ano=None):
 
         # Pega o nome do vendedor do DataFrame, que veio do Oracle
         seller_name = group['sellerName'].iloc[0] if not group.empty else seller_info.nome
+        
+        # Buscar ajustes financeiros manuais para este vendedor e período
+        ajuste_financeiro = AjusteFinanceiro.query.filter_by(
+            vendedor_rca=seller_code,
+            mes=mes,
+            ano=ano
+        ).first()
+        
+        # Usar valores manuais se existirem, senão usar 0
+        valor_ret_merc_manual = ajuste_financeiro.valor_ret_merc if ajuste_financeiro else 0.0
+        valor_titulo_aberto_manual = ajuste_financeiro.valor_titulo_aberto if ajuste_financeiro else 0.0
+        valor_acresc_titulo_pago_mes_ant_manual = ajuste_financeiro.valor_acresc_titulo_pago_mes_ant if ajuste_financeiro else 0.0
             
         # Separar produtos em apenas duas categorias
         produtos_comissao_modificada_df = group[group['productCode'].isin(produtos_comissao_modificada)]
         outros_produtos = group[~group['productCode'].isin(produtos_comissao_modificada)]
 
+        # Calcular comissão total
+        total_commission = group['commission'].sum()
+        
+        # Aplicar as regras de cálculo dos ajustes financeiros
+        # Valor Acrésc. Título Pago Mês Ant.: SOMA COM O VALOR DE COMISSAO
+        comissao_final = total_commission + valor_acresc_titulo_pago_mes_ant_manual
+        
+        # Valor Ret. Merc.: DIMINUI COM O VALOR DE COMISSAO
+        comissao_final = comissao_final - valor_ret_merc_manual
+        
+        # Valor Título Aberto: DIMINUI COM O VALOR DE COMISSAO
+        comissao_final = comissao_final - valor_titulo_aberto_manual
+        
         seller_data[seller_code] = {
             'name': seller_name,
             'type': seller_info.tipo.value,
@@ -285,22 +310,19 @@ def process_commissions(mes=None, ano=None):
                 'produtos_comissao_modificada': {
                     'revenue': produtos_comissao_modificada_df['revenue'].sum() if not produtos_comissao_modificada_df.empty else 0,
                     'commission': produtos_comissao_modificada_df['commission'].sum() if not produtos_comissao_modificada_df.empty else 0,
-                    'valorRetMerc': produtos_comissao_modificada_df['valorRetMerc'].sum() if not produtos_comissao_modificada_df.empty else 0,
-                    'valorTituloAberto': produtos_comissao_modificada_df['valorTituloAberto'].sum() if not produtos_comissao_modificada_df.empty else 0,
-                    'valorAcrescTituloPagoMesAnt': produtos_comissao_modificada_df['valorAcrescTituloPagoMesAnt'].sum() if not produtos_comissao_modificada_df.empty else 0,
                 },
                 'outros_produtos': {
                     'revenue': outros_produtos['revenue'].sum() if not outros_produtos.empty else 0,
                     'commission': outros_produtos['commission'].sum() if not outros_produtos.empty else 0,
-                    'valorRetMerc': outros_produtos['valorRetMerc'].sum() if not outros_produtos.empty else 0,
-                    'valorTituloAberto': outros_produtos['valorTituloAberto'].sum() if not outros_produtos.empty else 0,
-                    'valorAcrescTituloPagoMesAnt': outros_produtos['valorAcrescTituloPagoMesAnt'].sum() if not outros_produtos.empty else 0,
                 }
             },
-            'totalCommission': group['commission'].sum(),
-            'totalRetMerc': group['valorRetMerc'].sum(),
-            'totalTitleOpen': group['valorTituloAberto'].sum(),
-            'totalTitleAdded': group['valorAcrescTituloPagoMesAnt'].sum(),
+            'totalCommission': total_commission,
+            'comissaoFinal': comissao_final,
+            'ajustesFinanceiros': {
+                'valorRetMerc': valor_ret_merc_manual,
+                'valorTituloAberto': valor_titulo_aberto_manual,
+                'valorAcrescTituloPagoMesAnt': valor_acresc_titulo_pago_mes_ant_manual,
+            }
         }
 
     # Ordenar vendedores por faturamento total (do maior para o menor)

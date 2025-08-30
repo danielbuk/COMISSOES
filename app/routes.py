@@ -1,7 +1,7 @@
 from flask import render_template, request, jsonify, redirect, url_for
 from . import app
 from .services import process_commissions, import_month_data, get_available_months, sincronizar_produtos_oracle, buscar_produtos_cache, obter_estatisticas_cache
-from .models import Vendedor, RegraComissao, ComissaoPadrao, ProdutoEspecial, db
+from .models import Vendedor, RegraComissao, ComissaoPadrao, ProdutoEspecial, db, AjusteFinanceiro
 from datetime import datetime
 
 @app.route('/')
@@ -371,3 +371,89 @@ def api_available_months():
     """API para buscar meses disponíveis"""
     months = get_available_months()
     return jsonify([{'mes': m[0], 'ano': m[1]} for m in months])
+
+@app.route('/api/ajuste-financeiro/<int:rca>/<int:ano>/<int:mes>', methods=['GET'])
+def get_ajuste_financeiro(rca, ano, mes):
+    """API para buscar ajustes financeiros de um vendedor em um período específico"""
+    try:
+        ajuste = AjusteFinanceiro.query.filter_by(
+            vendedor_rca=rca, 
+            ano=ano, 
+            mes=mes
+        ).first()
+        
+        if ajuste:
+            return jsonify({
+                'success': True,
+                'ajuste': {
+                    'id': ajuste.id,
+                    'vendedor_rca': ajuste.vendedor_rca,
+                    'mes': ajuste.mes,
+                    'ano': ajuste.ano,
+                    'valor_titulo_aberto': ajuste.valor_titulo_aberto,
+                    'valor_ret_merc': ajuste.valor_ret_merc,
+                    'valor_acresc_titulo_pago_mes_ant': ajuste.valor_acresc_titulo_pago_mes_ant,
+                    'data_criacao': ajuste.data_criacao.strftime('%d/%m/%Y %H:%M'),
+                    'data_atualizacao': ajuste.data_atualizacao.strftime('%d/%m/%Y %H:%M')
+                }
+            })
+        else:
+            return jsonify({
+                'success': True,
+                'ajuste': {
+                    'vendedor_rca': rca,
+                    'mes': mes,
+                    'ano': ano,
+                    'valor_titulo_aberto': 0.0,
+                    'valor_ret_merc': 0.0,
+                    'valor_acresc_titulo_pago_mes_ant': 0.0
+                }
+            })
+            
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Erro ao buscar ajuste: {str(e)}'}), 500
+
+@app.route('/api/ajuste-financeiro', methods=['POST'])
+def create_or_update_ajuste_financeiro():
+    """API para criar ou atualizar ajustes financeiros"""
+    try:
+        data = request.get_json()
+        
+        # Busca ajuste existente
+        ajuste = AjusteFinanceiro.query.filter_by(
+            vendedor_rca=data['vendedor_rca'],
+            ano=data['ano'],
+            mes=data['mes']
+        ).first()
+        
+        if ajuste:
+            # Atualiza ajuste existente
+            ajuste.valor_titulo_aberto = float(data['valor_titulo_aberto'])
+            ajuste.valor_ret_merc = float(data['valor_ret_merc'])
+            ajuste.valor_acresc_titulo_pago_mes_ant = float(data['valor_acresc_titulo_pago_mes_ant'])
+            ajuste.data_atualizacao = datetime.utcnow()
+            message = 'Ajuste financeiro atualizado com sucesso'
+        else:
+            # Cria novo ajuste
+            ajuste = AjusteFinanceiro(
+                vendedor_rca=data['vendedor_rca'],
+                ano=data['ano'],
+                mes=data['mes'],
+                valor_titulo_aberto=float(data['valor_titulo_aberto']),
+                valor_ret_merc=float(data['valor_ret_merc']),
+                valor_acresc_titulo_pago_mes_ant=float(data['valor_acresc_titulo_pago_mes_ant'])
+            )
+            db.session.add(ajuste)
+            message = 'Ajuste financeiro criado com sucesso'
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True, 
+            'message': message,
+            'ajuste_id': ajuste.id
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': f'Erro ao salvar ajuste: {str(e)}'}), 500
