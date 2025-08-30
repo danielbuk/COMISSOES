@@ -512,100 +512,80 @@ def gerar_pdf_relatorio():
         story.append(Paragraph(f"{mes}/{ano}", subtitle_style))
         story.append(Spacer(1, 20))
         
-        # Para cada vendedor, criar uma tabela
+        # NOVA LÓGICA PARA A TABELA ÚNICA
+
+        # 1. Definir os cabeçalhos da tabela
+        table_headers = [
+            'VENDEDOR', 'FAT. ORACLE', 'AJUSTE FAT.', 'FAT. TOTAL', 
+            'COM. ORACLE', 'COM. AJUSTE', 'COM. BASE', 
+            '(+) PAGO MÊS ANT.', '(-) DEV.', '(-) TÍT. ABERTO', 'COM. FINAL'
+        ]
+
+        # 2. Preparar os dados da tabela, uma linha por vendedor
+        table_data = [table_headers]
+
         for seller_code, seller in commission_data.items():
-            # Cabeçalho do vendedor
-            seller_header_style = ParagraphStyle(
-                'SellerHeader',
-                parent=styles['Heading3'],
-                fontSize=12,
-                spaceAfter=10,
-                textColor=colors.white,
-                backColor=colors.darkblue
+            # Consolidar dados das filiais para o PDF
+            faturamento_oracle_total = (
+                seller['filiais_data'].get(1, {}).get('faturamentoOracle', 0) +
+                seller['filiais_data'].get(98, {}).get('faturamentoOracle', 0)
             )
-            story.append(Paragraph(f"{seller['name']} - RCA: {seller_code}", seller_header_style))
-            
-            # Dados do vendedor
-            data = [
-                ['Descrição', 'Valor'],
-                ['Faturamento Oracle', f"R$ {seller['faturamentoOracle']:,.2f}"],
+            comissao_oracle_total = (
+                seller['filiais_data'].get(1, {}).get('comissaoBaseOracle', 0) +
+                seller['filiais_data'].get(98, {}).get('comissaoBaseOracle', 0)
+            )
+
+            # Formatar os valores como strings para o PDF
+            row = [
+                Paragraph(f"{seller['name']} ({seller_code})", styles['Normal']),
+                f"R$ {faturamento_oracle_total:,.2f}",
+                f"R$ {seller['ajusteFaturamento']['valorAjuste']:,.2f}",
+                f"R$ {seller['faturamentoFinal']:,.2f}",
+                f"R$ {comissao_oracle_total:,.2f}",
+                f"R$ {seller['comissaoDoAjuste']:,.2f}",
+                f"R$ {seller['totalCommission']:,.2f}",
+                f"R$ {seller['ajustesFinanceiros']['valorAcrescTituloPagoMesAnt']:,.2f}",
+                f"R$ {seller['ajustesFinanceiros']['valorRetMerc']:,.2f}",
+                f"R$ {seller['ajustesFinanceiros']['valorTituloAberto']:,.2f}",
+                f"R$ {seller['comissaoFinal']:,.2f}",
             ]
-            
-            # Adicionar ajuste manual se existir
-            if seller['ajusteFaturamento']['valorAjuste'] != 0:
-                ajuste_valor = seller['ajusteFaturamento']['valorAjuste']
-                ajuste_taxa = seller['ajusteFaturamento']['taxaComissaoAjuste']
-                sinal = '+' if ajuste_valor > 0 else ''
-                data.append([f'Ajuste Manual ({ajuste_taxa:.1%})', f"{sinal}R$ {ajuste_valor:,.2f}"])
-            
-            data.extend([
-                ['FATURAMENTO TOTAL', f"R$ {seller['faturamentoFinal']:,.2f}"],
-            ])
-            
-            # Adicionar produtos com comissão especial detalhados
-            if seller['details']['produtos_detalhados']:
-                data.append(['', ''])  # Linha em branco
-                data.append(['PRODUTOS COM COMISSÃO ESPECIAL', ''])
-                
-                for produto in seller['details']['produtos_detalhados']:
-                    taxa_percentual = produto['taxa_comissao'] * 100
-                    data.append([
-                        f"  {produto['nome_produto']} ({taxa_percentual:.1f}%)",
-                        f"R$ {produto['faturamento_total']:,.2f} | R$ {produto['comissao_total']:,.2f}"
-                    ])
-                
-                data.append(['', ''])  # Linha em branco
-            
-            # Adicionar outros produtos
-            if seller['details']['outros_produtos']['revenue'] > 0:
-                data.append(['OUTROS PRODUTOS', f"R$ {seller['details']['outros_produtos']['revenue']:,.2f} | R$ {seller['details']['outros_produtos']['commission']:,.2f}"])
-                data.append(['', ''])  # Linha em branco
-            
-            data.extend([
-                ['Comissão s/ Faturamento Oracle', f"R$ {seller['comissaoBaseOracle']:,.2f}"],
-            ])
-            
-            # Adicionar comissão do ajuste se existir
-            if seller['comissaoDoAjuste'] != 0:
-                data.append(['Comissão s/ Ajuste Manual', f"R$ {seller['comissaoDoAjuste']:,.2f}"])
-            
-            data.extend([
-                ['COMISSÃO TOTAL (BASE)', f"R$ {seller['totalCommission']:,.2f}"],
-                ['(+) Valor Acrésc. Título Pago Mês Ant.', f"+ R$ {seller['ajustesFinanceiros']['valorAcrescTituloPagoMesAnt']:,.2f}"],
-                ['(-) Valor Ret. Merc. (Devolução)', f"- R$ {seller['ajustesFinanceiros']['valorRetMerc']:,.2f}"],
-                ['(-) Valor Título Aberto', f"- R$ {seller['ajustesFinanceiros']['valorTituloAberto']:,.2f}"],
-                ['COMISSÃO FINAL A PAGAR', f"R$ {seller['comissaoFinal']:,.2f}"],
-            ])
-            
-            # Criar tabela com colunas mais largas para orientação paisagem
-            table = Table(data, colWidths=[5.5*inch, 2.5*inch])
-            
-            # Estilo da tabela
+            table_data.append(row)
+
+        # 3. Criar o objeto Tabela
+        # Ajustar a largura das colunas conforme necessário
+        col_widths = [2.2*inch, 1*inch, 0.9*inch, 1*inch, 0.9*inch, 0.9*inch, 0.9*inch, 1*inch, 0.8*inch, 0.9*inch, 1*inch]
+
+        if len(table_data) > 1: # Só cria a tabela se houver dados
+            table = Table(table_data, colWidths=col_widths)
+
+            # 4. Aplicar um estilo de planilha
             table_style = TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.darkblue),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                ('ALIGN', (1, 1), (-1, -1), 'RIGHT'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 10),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-                ('GRID', (0, 0), (-1, -1), 1, colors.black),
-                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-                ('FONTSIZE', (0, 1), (-1, -1), 9),
-                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                ('ALIGN', (1, 1), (-1, -1), 'RIGHT'),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 8),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+
+                ('BACKGROUND', (0, 1), (-1, -1), colors.whitesmoke),
+                ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 1), (-1, -1), 8),
+
+                # Alinhamento das colunas de valores à direita
+                ('ALIGN', (1, 1), (-1, -1), 'RIGHT'),
+                # Alinhamento da coluna de vendedor à esquerda
+                ('ALIGN', (0, 1), (0, -1), 'LEFT'),
+
+                ('GRID', (0, 0), (-1, -1), 1, colors.black),
                 ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.beige, colors.white]),
             ])
-            
-            # Destacar linhas importantes
-            for i, row in enumerate(data):
-                if 'TOTAL' in row[0] or 'FINAL' in row[0]:
-                    table_style.add('BACKGROUND', (0, i), (-1, i), colors.orange)
-                    table_style.add('TEXTCOLOR', (0, i), (-1, i), colors.white)
-                    table_style.add('FONTNAME', (0, i), (-1, i), 'Helvetica-Bold')
-            
+
+            # Estilo para a última coluna (Comissão Final)
+            table_style.add('BACKGROUND', (10, 1), (10, -1), colors.lightgreen)
+            table_style.add('FONTNAME', (10, 1), (10, -1), 'Helvetica-Bold')
+
             table.setStyle(table_style)
             story.append(table)
             story.append(Spacer(1, 20))
