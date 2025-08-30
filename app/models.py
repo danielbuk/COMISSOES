@@ -97,3 +97,24 @@ class AjusteFinanceiro(db.Model):
         db.UniqueConstraint('vendedor_rca', 'mes', 'ano', name='uq_vendedor_mes_ano'),
         db.Index('idx_vendedor_mes_ano', 'vendedor_rca', 'mes', 'ano'),
     )
+
+class AjusteFaturamento(db.Model):
+    """Modelo para armazenar ajustes de faturamento manuais com taxa de comissão específica"""
+    id = db.Column(db.Integer, primary_key=True)
+    vendedor_rca = db.Column(db.Integer, db.ForeignKey('vendedor.rca'), nullable=False)
+    mes = db.Column(db.Integer, nullable=False)
+    ano = db.Column(db.Integer, nullable=False)
+    valor_ajuste = db.Column(db.Float, nullable=False)  # Pode ser positivo ou negativo
+    taxa_comissao_ajuste = db.Column(db.Float, nullable=False)  # Taxa específica para este ajuste
+    motivo = db.Column(db.Text, nullable=True)  # Justificativa do ajuste
+    data_criacao = db.Column(db.DateTime, default=datetime.utcnow)
+    data_atualizacao = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relacionamento
+    vendedor = db.relationship('Vendedor', backref='ajustes_faturamento')
+    
+    # Índice único para evitar duplicatas por vendedor/período
+    __table_args__ = (
+        db.UniqueConstraint('vendedor_rca', 'mes', 'ano', name='uq_vendedor_mes_ano_ajuste_faturamento'),
+        db.Index('idx_vendedor_mes_ano_ajuste_faturamento', 'vendedor_rca', 'mes', 'ano'),
+    )

@@ -1,7 +1,7 @@
 import pandas as pd
 import oracledb
 from flask import current_app
-from .models import Vendedor, RegraComissao, ComissaoPadrao, DadosVendas, TipoVendedor, ProdutoEspecial, ProdutoOracleCache, AjusteFinanceiro
+from .models import Vendedor, RegraComissao, ComissaoPadrao, DadosVendas, TipoVendedor, ProdutoEspecial, ProdutoOracleCache, AjusteFinanceiro, AjusteFaturamento
 from . import db
 from datetime import datetime
 import os
@@ -279,19 +279,36 @@ def process_commissions(mes=None, ano=None):
             ano=ano
         ).first()
         
+        # Buscar ajuste de faturamento manual para este vendedor e período
+        ajuste_faturamento = AjusteFaturamento.query.filter_by(
+            vendedor_rca=seller_code,
+            mes=mes,
+            ano=ano
+        ).first()
+        
         # Usar valores manuais se existirem, senão usar 0
         valor_ret_merc_manual = ajuste_financeiro.valor_ret_merc if ajuste_financeiro else 0.0
         valor_titulo_aberto_manual = ajuste_financeiro.valor_titulo_aberto if ajuste_financeiro else 0.0
         valor_acresc_titulo_pago_mes_ant_manual = ajuste_financeiro.valor_acresc_titulo_pago_mes_ant if ajuste_financeiro else 0.0
+        
+        # Valores do ajuste de faturamento
+        valor_ajuste_faturamento = ajuste_faturamento.valor_ajuste if ajuste_faturamento else 0.0
+        taxa_comissao_ajuste = ajuste_faturamento.taxa_comissao_ajuste if ajuste_faturamento else 0.0
             
         # Separar produtos em apenas duas categorias
         produtos_comissao_modificada_df = group[group['productCode'].isin(produtos_comissao_modificada)]
         outros_produtos = group[~group['productCode'].isin(produtos_comissao_modificada)]
 
-        # Calcular comissão total
-        total_commission = group['commission'].sum()
+        # Calcular comissão base do Oracle (PASSO 1 - não alterar)
+        comissao_base_oracle = group['commission'].sum()
         
-        # Aplicar as regras de cálculo dos ajustes financeiros
+        # Calcular comissão do ajuste de faturamento (PASSO 3)
+        comissao_do_ajuste = valor_ajuste_faturamento * taxa_comissao_ajuste
+        
+        # Calcular comissão base total (PASSO 4)
+        total_commission = comissao_base_oracle + comissao_do_ajuste
+        
+        # Aplicar as regras de cálculo dos ajustes financeiros (PASSO 6)
         # Valor Acrésc. Título Pago Mês Ant.: SOMA COM O VALOR DE COMISSAO
         comissao_final = total_commission + valor_acresc_titulo_pago_mes_ant_manual
         
@@ -301,11 +318,16 @@ def process_commissions(mes=None, ano=None):
         # Valor Título Aberto: DIMINUI COM O VALOR DE COMISSAO
         comissao_final = comissao_final - valor_titulo_aberto_manual
         
+        # Calcular faturamento total (PASSO 5)
+        faturamento_oracle = group['revenue'].sum()
+        faturamento_final = faturamento_oracle + valor_ajuste_faturamento
+        
         seller_data[seller_code] = {
             'name': seller_name,
             'type': seller_info.tipo.value,
             'is_cooperativa': seller_info.is_cooperativa,
-            'totalRevenue': group['revenue'].sum(),
+            'faturamentoOracle': faturamento_oracle,
+            'faturamentoFinal': faturamento_final,
             'details': {
                 'produtos_comissao_modificada': {
                     'revenue': produtos_comissao_modificada_df['revenue'].sum() if not produtos_comissao_modificada_df.empty else 0,
@@ -316,8 +338,15 @@ def process_commissions(mes=None, ano=None):
                     'commission': outros_produtos['commission'].sum() if not outros_produtos.empty else 0,
                 }
             },
+            'comissaoBaseOracle': comissao_base_oracle,
+            'comissaoDoAjuste': comissao_do_ajuste,
             'totalCommission': total_commission,
             'comissaoFinal': comissao_final,
+            'ajusteFaturamento': {
+                'valorAjuste': valor_ajuste_faturamento,
+                'taxaComissaoAjuste': taxa_comissao_ajuste,
+                'motivo': ajuste_faturamento.motivo if ajuste_faturamento else None,
+            },
             'ajustesFinanceiros': {
                 'valorRetMerc': valor_ret_merc_manual,
                 'valorTituloAberto': valor_titulo_aberto_manual,
@@ -325,8 +354,8 @@ def process_commissions(mes=None, ano=None):
             }
         }
 
-    # Ordenar vendedores por faturamento total (do maior para o menor)
-    sorted_sellers = dict(sorted(seller_data.items(), key=lambda item: item[1]['totalRevenue'], reverse=True))
+    # Ordenar vendedores por faturamento final (do maior para o menor)
+    sorted_sellers = dict(sorted(seller_data.items(), key=lambda item: item[1]['faturamentoFinal'], reverse=True))
 
     return sorted_sellers, f"Relatório gerado para {mes}/{ano}"
 

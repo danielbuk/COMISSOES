@@ -31,7 +31,7 @@
                     </div>
                     <div class="stat">
                         <span class="stat-label">Faturamento Total:</span>
-                        <span class="stat-value">R$ {{ "{:,.2f}".format(sellers.values()|sum(attribute='totalRevenue')) }}</span>
+                        <span class="stat-value">R$ {{ "{:,.2f}".format(sellers.values()|sum(attribute='faturamentoFinal')) }}</span>
                     </div>
                     <div class="stat">
                         <span class="stat-label">Comissões Base:</span>
@@ -62,15 +62,45 @@
                             data-ano="{{ ano }}">
                         ✏️ Ajustes Financeiros
                     </button>
+                    <button class="btn btn-sm btn-outline-success ajuste-faturamento-btn" 
+                            data-rca="{{ seller_code }}" 
+                            data-nome="{{ seller.name }}" 
+                            data-mes="{{ mes }}" 
+                            data-ano="{{ ano }}">
+                        📈 Ajuste de Faturamento
+                    </button>
                 </div>
             </div>
 
             <div class="seller-summary">
                 <div class="summary-row">
                     <div class="summary-item">
-                        <span class="label">Faturamento Total:</span>
-                        <span class="value">R$ {{ "{:,.2f}".format(seller.totalRevenue) }}</span>
+                        <span class="label">Faturamento Oracle:</span>
+                        <span class="value">R$ {{ "{:,.2f}".format(seller.faturamentoOracle) }}</span>
                     </div>
+                    <div class="summary-item">
+                        <span class="label">Faturamento Final:</span>
+                        <span class="value">R$ {{ "{:,.2f}".format(seller.faturamentoFinal) }}</span>
+                    </div>
+                </div>
+                
+                {% if seller.ajusteFaturamento.valorAjuste != 0 %}
+                <div class="summary-row ajuste-row">
+                    <div class="summary-item">
+                        <span class="label">Ajuste Manual:</span>
+                        <span class="value {% if seller.ajusteFaturamento.valorAjuste > 0 %}positive{% else %}negative{% endif %}">
+                            {% if seller.ajusteFaturamento.valorAjuste > 0 %}+{% endif %}R$ {{ "{:,.2f}".format(seller.ajusteFaturamento.valorAjuste) }}
+                            <small>({{ "{:.1%}".format(seller.ajusteFaturamento.taxaComissaoAjuste) }})</small>
+                        </span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="label">Comissão do Ajuste:</span>
+                        <span class="value">R$ {{ "{:,.2f}".format(seller.comissaoDoAjuste) }}</span>
+                    </div>
+                </div>
+                {% endif %}
+                
+                <div class="summary-row">
                     <div class="summary-item">
                         <span class="label">Comissão Final:</span>
                         <span class="value">R$ {{ "{:,.2f}".format(seller.comissaoFinal) }}</span>
@@ -117,7 +147,17 @@
                 <h3>💰 TOTAIS E AJUSTES FINANCEIROS</h3>
                 <div class="totals-summary">
                     <div class="total-item">
-                        <span class="label">Comissão Total (Base):</span>
+                        <span class="label">Comissão (vendas Oracle):</span>
+                        <span class="value">R$ {{ "{:,.2f}".format(seller.comissaoBaseOracle) }}</span>
+                    </div>
+                    {% if seller.comissaoDoAjuste != 0 %}
+                    <div class="total-item">
+                        <span class="label">Comissão (ajuste manual):</span>
+                        <span class="value">R$ {{ "{:,.2f}".format(seller.comissaoDoAjuste) }}</span>
+                    </div>
+                    {% endif %}
+                    <div class="total-item">
+                        <span class="label">Comissão Base Total:</span>
                         <span class="value">R$ {{ "{:,.2f}".format(seller.totalCommission) }}</span>
                     </div>
                     <div class="total-item">
@@ -184,6 +224,38 @@
     </div>
 </div>
 
+<!-- Modal de Ajuste de Faturamento -->
+<div id="modalAjusteFaturamento" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="modalFaturamentoTitle">Ajuste de Faturamento</h3>
+            <span class="close" onclick="fecharModalFaturamento()">&times;</span>
+        </div>
+        <div class="modal-body">
+            <form id="formAjusteFaturamento">
+                <div class="form-group">
+                    <label for="valorAjuste">Valor do Ajuste (R$):</label>
+                    <input type="number" id="valorAjuste" name="valorAjuste" step="0.01" class="form-control" required>
+                    <small class="form-text text-muted">Use valores positivos para adicionar ou negativos para subtrair</small>
+                </div>
+                <div class="form-group">
+                    <label for="taxaComissaoAjuste">Taxa de Comissão do Ajuste (%):</label>
+                    <input type="number" id="taxaComissaoAjuste" name="taxaComissaoAjuste" step="0.001" min="0" max="100" class="form-control" required>
+                    <small class="form-text text-muted">Ex: 0.5 para 0,5%, 1.0 para 1%</small>
+                </div>
+                <div class="form-group">
+                    <label for="motivoAjuste">Motivo do Ajuste:</label>
+                    <textarea id="motivoAjuste" name="motivoAjuste" class="form-control" rows="3" placeholder="Descreva o motivo deste ajuste..."></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-success">Salvar Ajuste</button>
+                    <button type="button" class="btn btn-secondary" onclick="fecharModalFaturamento()">Cancelar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <script>
 // Variáveis globais para o modal
 let currentRca = null;
@@ -200,6 +272,17 @@ document.addEventListener('DOMContentLoaded', function() {
             const mes = this.getAttribute('data-mes');
             const ano = this.getAttribute('data-ano');
             abrirModalAjuste(rca, nome, mes, ano);
+        });
+    });
+    
+    const ajusteFaturamentoBtns = document.querySelectorAll('.ajuste-faturamento-btn');
+    ajusteFaturamentoBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const rca = this.getAttribute('data-rca');
+            const nome = this.getAttribute('data-nome');
+            const mes = this.getAttribute('data-mes');
+            const ano = this.getAttribute('data-ano');
+            abrirModalAjusteFaturamento(rca, nome, mes, ano);
         });
     });
 });
@@ -238,16 +321,54 @@ function fecharModal() {
     document.getElementById('modalAjuste').style.display = 'none';
 }
 
+function fecharModalFaturamento() {
+    document.getElementById('modalAjusteFaturamento').style.display = 'none';
+}
+
 // Fechar modal ao clicar no X
 document.querySelector('.close').addEventListener('click', fecharModal);
 
 // Fechar modal ao clicar fora dele
 window.addEventListener('click', function(event) {
     const modal = document.getElementById('modalAjuste');
+    const modalFaturamento = document.getElementById('modalAjusteFaturamento');
     if (event.target === modal) {
         fecharModal();
     }
+    if (event.target === modalFaturamento) {
+        fecharModalFaturamento();
+    }
 });
+
+function abrirModalAjusteFaturamento(rca, nome, mes, ano) {
+    currentRca = rca;
+    currentMes = mes;
+    currentAno = ano;
+    
+    // Atualizar título do modal
+    document.getElementById('modalFaturamentoTitle').textContent = `Ajuste de Faturamento para ${nome} - ${mes}/${ano}`;
+    
+    // Buscar dados existentes
+    fetch(`/api/ajuste-faturamento/${rca}/${ano}/${mes}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById('valorAjuste').value = data.ajuste.valor_ajuste;
+                document.getElementById('taxaComissaoAjuste').value = data.ajuste.taxa_comissao_ajuste;
+                document.getElementById('motivoAjuste').value = data.ajuste.motivo || '';
+            }
+        })
+        .catch(error => {
+            console.error('Erro ao buscar ajuste de faturamento:', error);
+            // Limpar campos em caso de erro
+            document.getElementById('valorAjuste').value = 0;
+            document.getElementById('taxaComissaoAjuste').value = 0;
+            document.getElementById('motivoAjuste').value = '';
+        });
+    
+    // Mostrar modal
+    document.getElementById('modalAjusteFaturamento').style.display = 'block';
+}
 
 // Submissão do formulário
 document.getElementById('formAjuste').addEventListener('submit', function(e) {
@@ -283,6 +404,43 @@ document.getElementById('formAjuste').addEventListener('submit', function(e) {
     .catch(error => {
         console.error('Erro ao salvar ajustes:', error);
         alert('Erro ao salvar ajustes. Tente novamente.');
+            });
+    });
+
+// Submissão do formulário de ajuste de faturamento
+document.getElementById('formAjusteFaturamento').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = {
+        vendedor_rca: parseInt(currentRca),
+        mes: parseInt(currentMes),
+        ano: parseInt(currentAno),
+        valor_ajuste: parseFloat(document.getElementById('valorAjuste').value),
+        taxa_comissao_ajuste: parseFloat(document.getElementById('taxaComissaoAjuste').value) / 100, // Converter % para decimal
+        motivo: document.getElementById('motivoAjuste').value
+    };
+    
+    fetch('/api/ajuste-faturamento', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Ajuste de faturamento salvo com sucesso!');
+            fecharModalFaturamento();
+            // Recarregar a página para atualizar os valores
+            window.location.reload();
+        } else {
+            alert('Erro ao salvar ajuste de faturamento: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Erro ao salvar ajuste de faturamento:', error);
+        alert('Erro ao salvar ajuste de faturamento. Tente novamente.');
     });
 });
 </script>

@@ -1,7 +1,7 @@
 from flask import render_template, request, jsonify, redirect, url_for
 from . import app
 from .services import process_commissions, import_month_data, get_available_months, sincronizar_produtos_oracle, buscar_produtos_cache, obter_estatisticas_cache
-from .models import Vendedor, RegraComissao, ComissaoPadrao, ProdutoEspecial, db, AjusteFinanceiro
+from .models import Vendedor, RegraComissao, ComissaoPadrao, ProdutoEspecial, db, AjusteFinanceiro, AjusteFaturamento
 from datetime import datetime
 
 @app.route('/')
@@ -445,6 +445,92 @@ def create_or_update_ajuste_financeiro():
             )
             db.session.add(ajuste)
             message = 'Ajuste financeiro criado com sucesso'
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True, 
+            'message': message,
+            'ajuste_id': ajuste.id
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': f'Erro ao salvar ajuste: {str(e)}'}), 500
+
+@app.route('/api/ajuste-faturamento/<int:rca>/<int:ano>/<int:mes>', methods=['GET'])
+def get_ajuste_faturamento(rca, ano, mes):
+    """API para buscar ajustes de faturamento de um vendedor em um período específico"""
+    try:
+        ajuste = AjusteFaturamento.query.filter_by(
+            vendedor_rca=rca, 
+            ano=ano, 
+            mes=mes
+        ).first()
+        
+        if ajuste:
+            return jsonify({
+                'success': True,
+                'ajuste': {
+                    'id': ajuste.id,
+                    'vendedor_rca': ajuste.vendedor_rca,
+                    'mes': ajuste.mes,
+                    'ano': ajuste.ano,
+                    'valor_ajuste': ajuste.valor_ajuste,
+                    'taxa_comissao_ajuste': ajuste.taxa_comissao_ajuste,
+                    'motivo': ajuste.motivo,
+                    'data_criacao': ajuste.data_criacao.strftime('%d/%m/%Y %H:%M'),
+                    'data_atualizacao': ajuste.data_atualizacao.strftime('%d/%m/%Y %H:%M')
+                }
+            })
+        else:
+            return jsonify({
+                'success': True,
+                'ajuste': {
+                    'vendedor_rca': rca,
+                    'mes': mes,
+                    'ano': ano,
+                    'valor_ajuste': 0.0,
+                    'taxa_comissao_ajuste': 0.0,
+                    'motivo': None
+                }
+            })
+            
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Erro ao buscar ajuste: {str(e)}'}), 500
+
+@app.route('/api/ajuste-faturamento', methods=['POST'])
+def create_or_update_ajuste_faturamento():
+    """API para criar ou atualizar ajustes de faturamento"""
+    try:
+        data = request.get_json()
+        
+        # Busca ajuste existente
+        ajuste = AjusteFaturamento.query.filter_by(
+            vendedor_rca=data['vendedor_rca'],
+            ano=data['ano'],
+            mes=data['mes']
+        ).first()
+        
+        if ajuste:
+            # Atualiza ajuste existente
+            ajuste.valor_ajuste = float(data['valor_ajuste'])
+            ajuste.taxa_comissao_ajuste = float(data['taxa_comissao_ajuste'])
+            ajuste.motivo = data.get('motivo', '')
+            ajuste.data_atualizacao = datetime.utcnow()
+            message = 'Ajuste de faturamento atualizado com sucesso'
+        else:
+            # Cria novo ajuste
+            ajuste = AjusteFaturamento(
+                vendedor_rca=data['vendedor_rca'],
+                ano=data['ano'],
+                mes=data['mes'],
+                valor_ajuste=float(data['valor_ajuste']),
+                taxa_comissao_ajuste=float(data['taxa_comissao_ajuste']),
+                motivo=data.get('motivo', '')
+            )
+            db.session.add(ajuste)
+            message = 'Ajuste de faturamento criado com sucesso'
         
         db.session.commit()
         

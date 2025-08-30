@@ -751,6 +751,77 @@ input:checked + .slider:before {
     transform: translateY(-1px);
 }
 
+/* Estilos específicos para o botão de ajuste de faturamento */
+.ajuste-faturamento-btn {
+    background: rgba(40, 167, 69, 0.2) !important;
+    border: 1px solid rgba(40, 167, 69, 0.3) !important;
+    color: white !important;
+    font-size: 0.8rem !important;
+    padding: 6px 12px !important;
+    transition: all 0.3s ease;
+}
+
+.ajuste-faturamento-btn:hover {
+    background: rgba(40, 167, 69, 0.3) !important;
+    transform: translateY(-1px);
+}
+
+/* Estilos para a linha de ajuste de faturamento */
+.ajuste-row {
+    background: linear-gradient(135deg, #f0fff4 0%, #e6fffa 100%) !important;
+    border: 1px solid #c6f6d5;
+    border-radius: 8px;
+    padding: 15px;
+    margin: 10px 0;
+}
+
+.ajuste-row .summary-item .value {
+    color: #059669;
+}
+
+.ajuste-row .summary-item .value.negative {
+    color: #dc2626;
+}
+
+.ajuste-row .summary-item .value small {
+    font-size: 0.8rem;
+    opacity: 0.7;
+    margin-left: 5px;
+}
+
+/* Botão verde para o modal de faturamento */
+.btn-success {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    color: white;
+}
+
+.btn-success:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(40, 167, 69, 0.3);
+}
+
+/* Estilos para o formulário de ajuste de faturamento */
+.form-text {
+    font-size: 0.85rem;
+    color: #6c757d;
+    margin-top: 5px;
+}
+
+/* Melhorias na responsividade dos botões */
+@media (max-width: 768px) {
+    .seller-info {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .ajuste-btn,
+    .ajuste-faturamento-btn {
+        width: 100%;
+        justify-content: center;
+        margin-top: 5px;
+    }
+}
+
 .form-actions {
     display: flex;
     gap: 10px;
