@@ -1,33 +1,33 @@
 #!/usr/bin/env python3
 """
-Script para atualizar o banco de dados com a nova tabela de produtos especiais.
+Script para atualizar o banco de dados com a nova tabela ProdutoOracleCache
 """
 
 from app import create_app, db
-from app.models import ProdutoEspecial
+from app.models import ProdutoOracleCache
 
-app = create_app()
-
-with app.app_context():
-    print("🔄 Atualizando banco de dados...")
+def update_database():
+    """Atualiza o banco de dados criando a nova tabela"""
+    app = create_app()
     
-    # Criar a nova tabela de produtos especiais
-    try:
-        db.create_all()
-        print("✅ Tabela de produtos especiais criada com sucesso!")
-        
-        # Verificar se a tabela foi criada
-        produtos_count = ProdutoEspecial.query.count()
-        print(f"📊 Produtos especiais cadastrados: {produtos_count}")
-        
-        print("\n🚀 Sistema atualizado com sucesso!")
-        print("📋 Próximos passos:")
-        print("1. Acesse a nova tela de Produtos Especiais")
-        print("2. Cadastre produtos com comissões especiais")
-        print("3. Os relatórios agora mostrarão apenas 2 categorias:")
-        print("   - PRODUTOS COM COMISSÃO MODIFICADA")
-        print("   - OUTROS PRODUTOS")
-        
-    except Exception as e:
-        print(f"❌ Erro ao atualizar banco de dados: {e}")
-        db.session.rollback()
+    with app.app_context():
+        try:
+            # Cria a nova tabela ProdutoOracleCache
+            db.create_all()
+            print("✅ Tabela ProdutoOracleCache criada com sucesso!")
+            
+            # Verifica se a tabela foi criada
+            from sqlalchemy import inspect
+            inspector = inspect(db.engine)
+            tabelas = inspector.get_table_names()
+            
+            if 'produto_oracle_cache' in tabelas:
+                print("✅ Tabela 'produto_oracle_cache' encontrada no banco de dados")
+            else:
+                print("❌ Tabela 'produto_oracle_cache' não foi encontrada")
+                
+        except Exception as e:
+            print(f"❌ Erro ao criar tabela: {str(e)}")
+
+if __name__ == '__main__':
+    update_database()

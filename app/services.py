@@ -1,7 +1,7 @@
 import pandas as pd
 import oracledb
 from flask import current_app
-from .models import Vendedor, RegraComissao, ComissaoPadrao, DadosVendas, TipoVendedor, ProdutoEspecial
+from .models import Vendedor, RegraComissao, ComissaoPadrao, DadosVendas, TipoVendedor, ProdutoEspecial, ProdutoOracleCache
 from . import db
 from datetime import datetime
 import os
@@ -307,3 +307,104 @@ def process_commissions(mes=None, ano=None):
     sorted_sellers = dict(sorted(seller_data.items(), key=lambda item: item[1]['totalRevenue'], reverse=True))
 
     return sorted_sellers, f"Relatório gerado para {mes}/{ano}"
+
+def sincronizar_produtos_oracle():
+    """
+    Sincroniza a lista de produtos do Oracle com o cache local
+    """
+    try:
+        config = current_app.config
+        
+        # Conecta ao Oracle
+        with oracledb.connect(
+            user=config['ORACLE_USER'], 
+            password=config['ORACLE_PASSWORD'], 
+            dsn=config['ORACLE_DSN']
+        ) as connection:
+            
+            # Query para buscar produtos únicos
+            query = """
+            SELECT DISTINCT CODIGO_PRODUTO, DESCRICAO_PRODUTO 
+            FROM DADOS_FATURAMENTO 
+            WHERE CODIGO_PRODUTO IS NOT NULL 
+            AND DESCRICAO_PRODUTO IS NOT NULL
+            ORDER BY CODIGO_PRODUTO
+            """
+            
+            cursor = connection.cursor()
+            cursor.execute(query)
+            produtos_oracle = cursor.fetchall()
+            
+            # Limpa o cache atual
+            ProdutoOracleCache.query.delete()
+            db.session.commit()
+            
+            # Insere os novos produtos no cache
+            produtos_inseridos = 0
+            for row in produtos_oracle:
+                try:
+                    produto_cache = ProdutoOracleCache(
+                        codigo_produto=str(row[0]).strip(),
+                        nome_produto=str(row[1]).strip(),
+                        data_sincronizacao=datetime.utcnow()
+                    )
+                    db.session.add(produto_cache)
+                    produtos_inseridos += 1
+                except Exception as e:
+                    # Log do erro mas continua processando
+                    print(f"⚠️ Erro ao inserir produto {row[0]}: {str(e)}")
+                    continue
+            
+            db.session.commit()
+            
+            return True, f"Sincronização concluída! {produtos_inseridos} produtos sincronizados."
+            
+    except Exception as e:
+        db.session.rollback()
+        print(f"❌ Erro na sincronização: {str(e)}")
+        return False, f"Erro na sincronização: {str(e)}"
+
+def buscar_produtos_cache(filtro=None, limite=50):
+    """
+    Busca produtos no cache local com filtro opcional
+    """
+    try:
+        query = ProdutoOracleCache.query
+        
+        if filtro:
+            # Busca por código ou nome do produto
+            query = query.filter(
+                db.or_(
+                    ProdutoOracleCache.codigo_produto.ilike(f'%{filtro}%'),
+                    ProdutoOracleCache.nome_produto.ilike(f'%{filtro}%')
+                )
+            )
+        
+        produtos = query.order_by(ProdutoOracleCache.nome_produto).limit(limite).all()
+        
+        return [{
+            'codigo': produto.codigo_produto,
+            'nome': produto.nome_produto
+        } for produto in produtos]
+        
+    except Exception as e:
+        print(f"❌ Erro ao buscar produtos no cache: {str(e)}")
+        return []
+
+def obter_estatisticas_cache():
+    """
+    Retorna estatísticas do cache de produtos
+    """
+    try:
+        total_produtos = ProdutoOracleCache.query.count()
+        ultima_sincronizacao = ProdutoOracleCache.query.order_by(
+            ProdutoOracleCache.data_sincronizacao.desc()
+        ).first()
+        
+        return {
+            'total_produtos': total_produtos,
+            'ultima_sincronizacao': ultima_sincronizacao.data_sincronizacao if ultima_sincronizacao else None
+        }
+    except Exception as e:
+        print(f"❌ Erro ao obter estatísticas do cache: {str(e)}")
+        return {'total_produtos': 0, 'ultima_sincronizacao': None}

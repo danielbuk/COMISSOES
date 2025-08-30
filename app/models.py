@@ -46,6 +46,19 @@ class ProdutoEspecial(db.Model):
     taxa_comissao = db.Column(db.Float, nullable=False)
     data_cadastro = db.Column(db.DateTime, default=datetime.utcnow)
 
+class ProdutoOracleCache(db.Model):
+    """Modelo para cache local de produtos do Oracle"""
+    id = db.Column(db.Integer, primary_key=True)
+    codigo_produto = db.Column(db.String(50), nullable=False, unique=True)
+    nome_produto = db.Column(db.String(255), nullable=False)
+    data_sincronizacao = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Índice para busca rápida
+    __table_args__ = (
+        db.Index('idx_codigo_produto', 'codigo_produto'),
+        db.Index('idx_nome_produto', 'nome_produto'),
+    )
+
 class DadosVendas(db.Model):
     """Modelo para armazenar dados de vendas em cache local"""
     id = db.Column(db.Integer, primary_key=True)

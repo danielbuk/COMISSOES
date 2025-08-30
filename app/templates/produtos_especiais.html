@@ -16,34 +16,55 @@
         <a href="/produtos-especiais" class="tab active">📦 Produtos Especiais</a>
     </div>
 
+    <!-- Seção de Status do Cache -->
+    <div class="cache-status-section">
+        <div class="cache-info">
+            <h3>📊 Status do Cache de Produtos</h3>
+            <div id="cacheStats" class="cache-stats">
+                <div class="stat-item">
+                    <span class="stat-label">Produtos em Cache:</span>
+                    <span id="totalProdutos" class="stat-value">Carregando...</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Última Sincronização:</span>
+                    <span id="ultimaSincronizacao" class="stat-value">Carregando...</span>
+                </div>
+            </div>
+        </div>
+        <div class="cache-actions">
+            <button type="button" class="btn btn-primary" onclick="sincronizarProdutos()">
+                🔄 Sincronizar Produtos do Oracle
+            </button>
+            <small>Atualiza a lista de produtos do Oracle no cache local</small>
+        </div>
+    </div>
+
     <div class="form-section">
         <h2>➕ Adicionar Novo Produto Especial</h2>
         
-        <!-- Botão para buscar produtos do Oracle -->
-        <div class="oracle-section">
-            <button type="button" class="btn btn-info" onclick="buscarProdutosOracle()">
-                🔍 Buscar Produtos do Oracle
-            </button>
-            <small>Clique para carregar produtos disponíveis no Oracle</small>
-        </div>
-        
-        <!-- Select para escolher produto do Oracle -->
-        <div class="form-group" id="produtoOracleGroup" style="display: none;">
-            <label for="produtoOracleSelect">Selecionar Produto do Oracle:</label>
-            <select id="produtoOracleSelect" class="form-control" onchange="preencherProdutoOracle()">
-                <option value="">Selecione um produto...</option>
-            </select>
-        </div>
-        
         <form id="produtoForm" class="form">
+            <!-- Campo de Seleção Inteligente -->
             <div class="form-group">
-                <label for="codigo_produto">Código do Produto:</label>
-                <input type="text" id="codigo_produto" name="codigo_produto" required>
+                <label for="produtoSelector">Selecionar Produto:</label>
+                <div class="smart-select-container">
+                    <input type="text" id="produtoSelector" placeholder="Digite o código ou nome do produto..." autocomplete="off">
+                    <div id="produtoDropdown" class="smart-dropdown" style="display: none;"></div>
+                </div>
+                <small>Digite para buscar produtos no cache local</small>
             </div>
             
-            <div class="form-group">
-                <label for="nome_produto">Nome do Produto:</label>
-                <input type="text" id="nome_produto" name="nome_produto" required>
+            <!-- Campos ocultos para os dados do produto -->
+            <input type="hidden" id="codigo_produto" name="codigo_produto">
+            <input type="hidden" id="nome_produto" name="nome_produto">
+            
+            <!-- Informações do produto selecionado -->
+            <div id="produtoInfo" class="produto-info" style="display: none;">
+                <div class="info-item">
+                    <strong>Código:</strong> <span id="infoCodigo"></span>
+                </div>
+                <div class="info-item">
+                    <strong>Nome:</strong> <span id="infoNome"></span>
+                </div>
             </div>
             
             <div class="form-group">
@@ -92,68 +113,165 @@
 
 <script>
 let editandoId = null;
-let produtosOracle = [];
+let timeoutBusca = null;
 
-// Buscar produtos do Oracle
-function buscarProdutosOracle() {
-    const button = document.querySelector('button[onclick="buscarProdutosOracle()"]');
-    button.disabled = true;
-    button.textContent = '🔍 Buscando...';
-    
-    fetch('/api/produtos-oracle')
+// Carregar estatísticas do cache ao iniciar
+document.addEventListener('DOMContentLoaded', function() {
+    carregarEstatisticasCache();
+    carregarProdutos();
+});
+
+// Carregar estatísticas do cache
+function carregarEstatisticasCache() {
+    fetch('/api/estatisticas-cache')
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            produtosOracle = data.produtos;
-            preencherSelectProdutos();
-            document.getElementById('produtoOracleGroup').style.display = 'block';
-            alert(`✅ ${produtosOracle.length} produtos encontrados no Oracle!`);
+            const stats = data.estatisticas;
+            document.getElementById('totalProdutos').textContent = stats.total_produtos;
+            
+            if (stats.ultima_sincronizacao) {
+                const data = new Date(stats.ultima_sincronizacao);
+                document.getElementById('ultimaSincronizacao').textContent = 
+                    data.toLocaleString('pt-BR');
+            } else {
+                document.getElementById('ultimaSincronizacao').textContent = 'Nunca';
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Erro ao carregar estatísticas:', error);
+    });
+}
+
+// Sincronizar produtos do Oracle
+function sincronizarProdutos() {
+    const button = document.querySelector('button[onclick="sincronizarProdutos()"]');
+    button.disabled = true;
+    button.textContent = '🔄 Sincronizando...';
+    
+    fetch('/api/sincronizar-produtos-oracle', {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('✅ ' + data.message);
+            carregarEstatisticasCache();
         } else {
-            alert('❌ Erro ao buscar produtos: ' + data.message);
+            alert('❌ Erro: ' + data.message);
         }
     })
     .catch(error => {
         console.error('Erro:', error);
-        alert('❌ Erro ao conectar com o Oracle');
+        alert('❌ Erro ao sincronizar produtos');
     })
     .finally(() => {
         button.disabled = false;
-        button.textContent = '🔍 Buscar Produtos do Oracle';
+        button.textContent = '🔄 Sincronizar Produtos do Oracle';
     });
 }
 
-// Preencher select com produtos do Oracle
-function preencherSelectProdutos() {
-    const select = document.getElementById('produtoOracleSelect');
-    select.innerHTML = '<option value="">Selecione um produto...</option>';
+// Configurar busca inteligente
+document.getElementById('produtoSelector').addEventListener('input', function(e) {
+    const valor = e.target.value.trim();
     
-    produtosOracle.forEach(produto => {
-        const option = document.createElement('option');
-        option.value = produto.codigo;
-        option.textContent = `${produto.codigo} - ${produto.descricao}`;
-        option.dataset.descricao = produto.descricao;
-        select.appendChild(option);
-    });
-}
-
-// Preencher formulário quando selecionar produto do Oracle
-function preencherProdutoOracle() {
-    const select = document.getElementById('produtoOracleSelect');
-    const selectedOption = select.options[select.selectedIndex];
-    
-    if (selectedOption.value) {
-        document.getElementById('codigo_produto').value = selectedOption.value;
-        document.getElementById('nome_produto').value = selectedOption.dataset.descricao;
+    // Limpar timeout anterior
+    if (timeoutBusca) {
+        clearTimeout(timeoutBusca);
     }
+    
+    // Esconder dropdown se não há valor
+    if (!valor) {
+        document.getElementById('produtoDropdown').style.display = 'none';
+        return;
+    }
+    
+    // Buscar após 300ms de pausa na digitação
+    timeoutBusca = setTimeout(() => {
+        buscarProdutos(valor);
+    }, 300);
+});
+
+// Buscar produtos no cache
+function buscarProdutos(filtro) {
+    fetch(`/api/produtos-oracle-cached?filtro=${encodeURIComponent(filtro)}&limite=20`)
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            mostrarDropdownProdutos(data.produtos);
+        } else {
+            console.error('Erro ao buscar produtos:', data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Erro:', error);
+    });
 }
 
+// Mostrar dropdown com produtos
+function mostrarDropdownProdutos(produtos) {
+    const dropdown = document.getElementById('produtoDropdown');
+    
+    if (produtos.length === 0) {
+        dropdown.innerHTML = '<div class="dropdown-item no-results">Nenhum produto encontrado</div>';
+    } else {
+        dropdown.innerHTML = produtos.map(produto => 
+            `<div class="dropdown-item" onclick="selecionarProduto('${produto.codigo}', '${produto.nome.replace(/'/g, "\\'")}')">
+                <div class="produto-codigo">${produto.codigo}</div>
+                <div class="produto-nome">${produto.nome}</div>
+            </div>`
+        ).join('');
+    }
+    
+    dropdown.style.display = 'block';
+}
+
+// Selecionar produto do dropdown
+function selecionarProduto(codigo, nome) {
+    document.getElementById('produtoSelector').value = `${codigo} - ${nome}`;
+    document.getElementById('codigo_produto').value = codigo;
+    document.getElementById('nome_produto').value = nome;
+    
+    // Mostrar informações do produto
+    document.getElementById('infoCodigo').textContent = codigo;
+    document.getElementById('infoNome').textContent = nome;
+    document.getElementById('produtoInfo').style.display = 'block';
+    
+    // Esconder dropdown
+    document.getElementById('produtoDropdown').style.display = 'none';
+    
+    // Focar no campo de taxa
+    document.getElementById('taxa_comissao').focus();
+}
+
+// Esconder dropdown quando clicar fora
+document.addEventListener('click', function(e) {
+    const dropdown = document.getElementById('produtoDropdown');
+    const selector = document.getElementById('produtoSelector');
+    
+    if (!dropdown.contains(e.target) && !selector.contains(e.target)) {
+        dropdown.style.display = 'none';
+    }
+});
+
+// Submissão do formulário
 document.getElementById('produtoForm').addEventListener('submit', function(e) {
     e.preventDefault();
     
+    const codigo = document.getElementById('codigo_produto').value;
+    const nome = document.getElementById('nome_produto').value;
+    const taxa = document.getElementById('taxa_comissao').value;
+    
+    if (!codigo || !nome) {
+        alert('Por favor, selecione um produto primeiro.');
+        return;
+    }
+    
     const formData = {
-        codigo_produto: document.getElementById('codigo_produto').value,
-        nome_produto: document.getElementById('nome_produto').value,
-        taxa_comissao: parseFloat(document.getElementById('taxa_comissao').value) / 100
+        codigo_produto: codigo,
+        nome_produto: nome,
+        taxa_comissao: parseFloat(taxa) / 100
     };
     
     if (editandoId) {
@@ -174,16 +292,16 @@ function criarProduto(data) {
     .then(response => response.json())
     .then(result => {
         if (result.success) {
-            alert('Produto criado com sucesso!');
+            alert('✅ Produto criado com sucesso!');
             limparFormulario();
             carregarProdutos();
         } else {
-            alert('Erro: ' + result.message);
+            alert('❌ Erro: ' + result.message);
         }
     })
     .catch(error => {
         console.error('Erro:', error);
-        alert('Erro ao criar produto');
+        alert('❌ Erro ao criar produto');
     });
 }
 
@@ -198,16 +316,16 @@ function atualizarProduto(id, data) {
     .then(response => response.json())
     .then(result => {
         if (result.success) {
-            alert('Produto atualizado com sucesso!');
+            alert('✅ Produto atualizado com sucesso!');
             limparFormulario();
             carregarProdutos();
         } else {
-            alert('Erro: ' + result.message);
+            alert('❌ Erro: ' + result.message);
         }
     })
     .catch(error => {
         console.error('Erro:', error);
-        alert('Erro ao atualizar produto');
+        alert('❌ Erro ao atualizar produto');
     });
 }
 
@@ -215,9 +333,15 @@ function editarProduto(id) {
     const row = document.querySelector(`tr[data-id="${id}"]`);
     const cells = row.cells;
     
+    document.getElementById('produtoSelector').value = `${cells[0].textContent} - ${cells[1].textContent}`;
     document.getElementById('codigo_produto').value = cells[0].textContent;
     document.getElementById('nome_produto').value = cells[1].textContent;
     document.getElementById('taxa_comissao').value = parseFloat(cells[2].textContent.replace('%', ''));
+    
+    // Mostrar informações do produto
+    document.getElementById('infoCodigo').textContent = cells[0].textContent;
+    document.getElementById('infoNome').textContent = cells[1].textContent;
+    document.getElementById('produtoInfo').style.display = 'block';
     
     editandoId = id;
     document.querySelector('button[type="submit"]').textContent = 'Atualizar Produto';
@@ -231,21 +355,26 @@ function excluirProduto(id) {
         .then(response => response.json())
         .then(result => {
             if (result.success) {
-                alert('Produto excluído com sucesso!');
+                alert('✅ Produto excluído com sucesso!');
                 carregarProdutos();
             } else {
-                alert('Erro: ' + result.message);
+                alert('❌ Erro: ' + result.message);
             }
         })
         .catch(error => {
             console.error('Erro:', error);
-            alert('Erro ao excluir produto');
+            alert('❌ Erro ao excluir produto');
         });
     }
 }
 
 function limparFormulario() {
     document.getElementById('produtoForm').reset();
+    document.getElementById('produtoSelector').value = '';
+    document.getElementById('codigo_produto').value = '';
+    document.getElementById('nome_produto').value = '';
+    document.getElementById('produtoInfo').style.display = 'none';
+    document.getElementById('produtoDropdown').style.display = 'none';
     editandoId = null;
     document.querySelector('button[type="submit"]').textContent = 'Salvar Produto';
 }
@@ -280,33 +409,146 @@ function carregarProdutos() {
 </script>
 
 <style>
-.oracle-section {
-    background: #e3f2fd;
-    padding: 15px;
+.cache-status-section {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
     border-radius: 8px;
-    margin-bottom: 20px;
-    border-left: 4px solid #2196f3;
+    padding: 20px;
+    margin-bottom: 30px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
 }
 
-.oracle-section button {
-    margin-bottom: 5px;
+.cache-info h3 {
+    margin: 0 0 15px 0;
+    color: #495057;
 }
 
-.oracle-section small {
-    color: #666;
+.cache-stats {
+    display: flex;
+    gap: 30px;
+}
+
+.stat-item {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.stat-label {
+    font-size: 0.9em;
+    color: #6c757d;
+    font-weight: 500;
+}
+
+.stat-value {
+    font-size: 1.1em;
+    font-weight: 600;
+    color: #495057;
+}
+
+.cache-actions {
+    text-align: right;
+}
+
+.cache-actions small {
     display: block;
+    margin-top: 5px;
+    color: #6c757d;
 }
 
-#produtoOracleGroup {
-    background: #f5f5f5;
+.smart-select-container {
+    position: relative;
+}
+
+.smart-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #ddd;
+    border-top: none;
+    border-radius: 0 0 4px 4px;
+    max-height: 300px;
+    overflow-y: auto;
+    z-index: 1000;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.dropdown-item {
+    padding: 10px 15px;
+    cursor: pointer;
+    border-bottom: 1px solid #f0f0f0;
+    transition: background-color 0.2s;
+}
+
+.dropdown-item:hover {
+    background-color: #f8f9fa;
+}
+
+.dropdown-item:last-child {
+    border-bottom: none;
+}
+
+.dropdown-item.no-results {
+    color: #6c757d;
+    font-style: italic;
+    cursor: default;
+}
+
+.dropdown-item:hover.no-results {
+    background-color: transparent;
+}
+
+.produto-codigo {
+    font-weight: 600;
+    color: #495057;
+    font-size: 0.9em;
+}
+
+.produto-nome {
+    color: #6c757d;
+    font-size: 0.85em;
+    margin-top: 2px;
+}
+
+.produto-info {
+    background: #e3f2fd;
+    border: 1px solid #bbdefb;
+    border-radius: 6px;
     padding: 15px;
-    border-radius: 8px;
-    margin-bottom: 20px;
-    border-left: 4px solid #4caf50;
+    margin: 15px 0;
 }
 
-#produtoOracleSelect {
-    max-width: 100%;
+.info-item {
+    margin-bottom: 8px;
+}
+
+.info-item:last-child {
+    margin-bottom: 0;
+}
+
+.info-item strong {
+    color: #1976d2;
+    margin-right: 8px;
+}
+
+@media (max-width: 768px) {
+    .cache-status-section {
+        flex-direction: column;
+        gap: 20px;
+    }
+    
+    .cache-actions {
+        text-align: left;
+    }
+    
+    .cache-stats {
+        flex-direction: column;
+        gap: 15px;
+    }
 }
 </style>
 {% endblock %}

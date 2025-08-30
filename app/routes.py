@@ -1,6 +1,6 @@
 from flask import render_template, request, jsonify, redirect, url_for
 from . import app
-from .services import process_commissions, import_month_data, get_available_months
+from .services import process_commissions, import_month_data, get_available_months, sincronizar_produtos_oracle, buscar_produtos_cache, obter_estatisticas_cache
 from .models import Vendedor, RegraComissao, ComissaoPadrao, ProdutoEspecial, db
 from datetime import datetime
 
@@ -320,6 +320,51 @@ def get_produtos_oracle():
             
     except Exception as e:
         return jsonify({'success': False, 'message': f'Erro ao buscar produtos: {str(e)}'}), 500
+
+@app.route('/api/produtos-oracle-cached')
+def get_produtos_oracle_cached():
+    """API para buscar produtos do cache local com filtro"""
+    try:
+        filtro = request.args.get('filtro', '').strip()
+        limite = request.args.get('limite', 50, type=int)
+        
+        produtos = buscar_produtos_cache(filtro, limite)
+        
+        return jsonify({
+            'success': True, 
+            'produtos': produtos,
+            'total_encontrado': len(produtos)
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Erro ao buscar produtos: {str(e)}'}), 500
+
+@app.route('/api/sincronizar-produtos-oracle', methods=['POST'])
+def sincronizar_produtos():
+    """API para sincronizar produtos do Oracle com o cache local"""
+    try:
+        success, message = sincronizar_produtos_oracle()
+        
+        if success:
+            return jsonify({'success': True, 'message': message})
+        else:
+            return jsonify({'success': False, 'message': message}), 500
+            
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Erro na sincronização: {str(e)}'}), 500
+
+@app.route('/api/estatisticas-cache')
+def get_estatisticas_cache():
+    """API para obter estatísticas do cache de produtos"""
+    try:
+        stats = obter_estatisticas_cache()
+        return jsonify({
+            'success': True,
+            'estatisticas': stats
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Erro ao obter estatísticas: {str(e)}'}), 500
 
 @app.route('/api/meses-disponiveis')
 def api_available_months():
