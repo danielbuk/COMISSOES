@@ -95,24 +95,24 @@
             </div>
 
             <div class="accordion-content" id="filial1-{{ seller_code }}">
-                {% if seller.filiais['1'] %}
+                {% if seller.filiais[1] %}
                     <h3>Detalhes - Filial 1 (Vendas)</h3>
                     <div class="filial-summary">
                         <div class="summary-item">
                             <span class="label">Faturamento Oracle:</span>
-                            <span class="value">R$ {{ "{:,.2f}".format(seller.filiais['1'].faturamentoOracle) }}</span>
+                            <span class="value">R$ {{ "{:,.2f}".format(seller.filiais[1].faturamentoOracle) }}</span>
                         </div>
                         <div class="summary-item">
                             <span class="label">Comissão Base Oracle:</span>
-                            <span class="value">R$ {{ "{:,.2f}".format(seller.filiais['1'].comissaoBaseOracle) }}</span>
+                            <span class="value">R$ {{ "{:,.2f}".format(seller.filiais[1].comissaoBaseOracle) }}</span>
                         </div>
                     </div>
                     
                     <!-- Produtos com Comissão Especial Detalhados -->
-                    {% if seller.filiais['1'].details.produtos_detalhados %}
+                    {% if seller.filiais[1].details.produtos_detalhados %}
                     <div class="product-section">
                         <h4>🎯 PRODUTOS COM COMISSÃO ESPECIAL</h4>
-                        {% for produto in seller.filiais['1'].details.produtos_detalhados %}
+                        {% for produto in seller.filiais[1].details.produtos_detalhados %}
                         <div class="product-detail-item">
                             <div class="product-header">
                                 <h5>{{ produto.nome_produto }} ({{ "{:.1%}".format(produto.taxa_comissao) }})</h5>
@@ -133,17 +133,17 @@
                     {% endif %}
 
                     <!-- Outros Produtos -->
-                    {% if seller.filiais['1'].details.outros_produtos.revenue > 0 %}
+                    {% if seller.filiais[1].details.outros_produtos.revenue > 0 %}
                     <div class="product-section">
                         <h4>📦 OUTROS PRODUTOS</h4>
                         <div class="product-summary">
                             <div class="product-item">
                                 <span class="label">Faturamento:</span>
-                                <span class="value">R$ {{ "{:,.2f}".format(seller.filiais['1'].details.outros_produtos.revenue) }}</span>
+                                <span class="value">R$ {{ "{:,.2f}".format(seller.filiais[1].details.outros_produtos.revenue) }}</span>
                             </div>
                             <div class="product-item">
                                 <span class="label">Comissão:</span>
-                                <span class="value">R$ {{ "{:,.2f}".format(seller.filiais['1'].details.outros_produtos.commission) }}</span>
+                                <span class="value">R$ {{ "{:,.2f}".format(seller.filiais[1].details.outros_produtos.commission) }}</span>
                             </div>
                         </div>
                     </div>
@@ -154,16 +154,16 @@
             </div>
 
             <div class="accordion-content" id="filial98-{{ seller_code }}">
-                {% if seller.filiais['98'] %}
+                {% if seller.filiais[98] %}
                     <h3>Detalhes - Filial 98 (Romaneio)</h3>
                     <div class="filial-summary">
                         <div class="summary-item">
                             <span class="label">Faturamento Oracle:</span>
-                            <span class="value">R$ {{ "{:,.2f}".format(seller.filiais['98'].faturamentoOracle) }}</span>
+                            <span class="value">R$ {{ "{:,.2f}".format(seller.filiais[98].faturamentoOracle) }}</span>
                         </div>
                         <div class="summary-item">
                             <span class="label">Comissão Base Oracle:</span>
-                            <span class="value">R$ {{ "{:,.2f}".format(seller.filiais['98'].comissaoBaseOracle) }}</span>
+                            <span class="value">R$ {{ "{:,.2f}".format(seller.filiais[98].comissaoBaseOracle) }}</span>
                         </div>
                     </div>
                     
