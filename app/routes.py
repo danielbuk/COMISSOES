@@ -526,14 +526,23 @@ def gerar_pdf_relatorio():
 
         for seller_code, seller in commission_data.items():
             # Consolidar dados das filiais para o PDF
-            faturamento_oracle_total = (
-                seller['filiais_data'].get(1, {}).get('faturamentoOracle', 0) +
-                seller['filiais_data'].get(98, {}).get('faturamentoOracle', 0)
-            )
-            comissao_oracle_total = (
-                seller['filiais_data'].get(1, {}).get('comissaoBaseOracle', 0) +
-                seller['filiais_data'].get(98, {}).get('comissaoBaseOracle', 0)
-            )
+            faturamento_oracle_total = 0
+            comissao_oracle_total = 0
+            
+            # Verificar se filiais_data existe e acessar os dados
+            if 'filiais_data' in seller:
+                faturamento_oracle_total = (
+                    seller['filiais_data'].get(1, {}).get('faturamentoOracle', 0) +
+                    seller['filiais_data'].get(98, {}).get('faturamentoOracle', 0)
+                )
+                comissao_oracle_total = (
+                    seller['filiais_data'].get(1, {}).get('comissaoBaseOracle', 0) +
+                    seller['filiais_data'].get(98, {}).get('comissaoBaseOracle', 0)
+                )
+            else:
+                # Fallback para estrutura antiga
+                faturamento_oracle_total = seller.get('faturamentoOracle', 0)
+                comissao_oracle_total = seller.get('comissaoBaseOracle', 0)
 
             # Formatar os valores como strings para o PDF
             row = [
