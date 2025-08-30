@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block title %}Relatório de Comissões - Sistema de Comissões{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="header">
+        <h1>📊 Relatório de Comissões</h1>
+        <p>{{ message }}</p>
+        <div class="period-info">
+            <span class="badge badge-primary">{{ mes }}/{{ ano }}</span>
+        </div>
+    </div>
+
+    <div class="nav-tabs">
+        <a href="/" class="tab">🏠 Dashboard</a>
+        <a href="/cadastro" class="tab">👥 Cadastro</a>
+        <a href="/comissoes" class="tab">💰 Comissões</a>
+        <a href="/relatorio?mes={{ mes }}&ano={{ ano }}" class="tab active">📊 Relatório</a>
+    </div>
+
+    {% if sellers %}
+        <div class="report-summary">
+            <div class="summary-card">
+                <h3>Resumo Geral</h3>
+                <div class="summary-stats">
+                    <div class="stat">
+                        <span class="stat-label">Total de Vendedores:</span>
+                        <span class="stat-value">{{ sellers|length }}</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">Faturamento Total:</span>
+                        <span class="stat-value">R$ {{ "%.2f"|format(sellers.values()|sum(attribute='totalRevenue')) }}</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">Comissões Totais:</span>
+                        <span class="stat-value">R$ {{ "%.2f"|format(sellers.values()|sum(attribute='totalCommission')) }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% for seller_code, seller in sellers.items() %}
+        <div class="seller-card {% if seller.is_cooperativa %}cooperativa{% endif %}">
+            <div class="seller-header">
+                <h2>{{ seller.name }}</h2>
+                <div class="seller-info">
+                    <span class="badge badge-{{ 'primary' if seller.type == 'Interno' else 'secondary' }}">{{ seller.type }}</span>
+                    <span class="badge badge-info">RCA: {{ seller_code }}</span>
+                    {% if seller.is_cooperativa %}
+                        <span class="badge badge-danger">Cooperativa</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="seller-summary">
+                <div class="summary-row">
+                    <div class="summary-item">
+                        <span class="label">Faturamento Total:</span>
+                        <span class="value">R$ {{ "%.2f"|format(seller.totalRevenue) }}</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="label">Comissão Total:</span>
+                        <span class="value">R$ {{ "%.2f"|format(seller.totalCommission) }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Produtos PEPSICO (apenas para Michelle - RCA 83) -->
+            {% if seller_code == 83 and seller.details.pepsico.revenue > 0 %}
+            <div class="product-section">
+                <h3>🍹 Produtos PEPSICO</h3>
+                <div class="product-summary">
+                    <div class="product-item">
+                        <span class="label">Faturamento PEPSICO:</span>
+                        <span class="value">R$ {{ "%.2f"|format(seller.details.pepsico.revenue) }}</span>
+                    </div>
+                    <div class="product-item">
+                        <span class="label">Comissão PEPSICO:</span>
+                        <span class="value">R$ {{ "%.2f"|format(seller.details.pepsico.commission) }}</span>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Produtos Detalhados -->
+            {% if seller.details.detailed_products %}
+            <div class="product-section">
+                <h3>📋 Produtos Detalhados</h3>
+                <div class="product-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Código</th>
+                                <th>Descrição</th>
+                                <th>Faturamento</th>
+                                <th>Comissão</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for product in seller.details.detailed_products %}
+                            <tr>
+                                <td>{{ product.productCode }}</td>
+                                <td>{{ product.productDesc }}</td>
+                                <td>R$ {{ "%.2f"|format(product.revenue) }}</td>
+                                <td>R$ {{ "%.2f"|format(product.commission) }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Outros Produtos -->
+            {% if seller.details.other_products.revenue > 0 %}
+            <div class="product-section">
+                <h3>📦 Outros Produtos</h3>
+                <div class="product-summary">
+                    <div class="product-item">
+                        <span class="label">Faturamento:</span>
+                        <span class="value">R$ {{ "%.2f"|format(seller.details.other_products.revenue) }}</span>
+                    </div>
+                    <div class="product-item">
+                        <span class="label">Comissão:</span>
+                        <span class="value">R$ {{ "%.2f"|format(seller.details.other_products.commission) }}</span>
+                    </div>
+                    <div class="product-item">
+                        <span class="label">Valor Ret. Merc.:</span>
+                        <span class="value">R$ {{ "%.2f"|format(seller.details.other_products.valorRetMerc) }}</span>
+                    </div>
+                    <div class="product-item">
+                        <span class="label">Valor Título Aberto:</span>
+                        <span class="value">R$ {{ "%.2f"|format(seller.details.other_products.valorTituloAberto) }}</span>
+                    </div>
+                    <div class="product-item">
+                        <span class="label">Valor Acrésc. Título Pago Mês Ant.:</span>
+                        <span class="value">R$ {{ "%.2f"|format(seller.details.other_products.valorAcrescTituloPagoMesAnt) }}</span>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">📊</div>
+            <h2>Nenhum dado encontrado</h2>
+            <p>{{ message }}</p>
+            <a href="/" class="btn btn-primary">Voltar ao Dashboard</a>
+        </div>
+    {% endif %}
+
+    <div class="actions">
+        <a href="/" class="btn btn-secondary">Voltar</a>
+    </div>
+</div>
+{% endblock %}

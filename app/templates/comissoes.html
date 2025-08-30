@@ -1,0 +1,286 @@
+{% extends "base.html" %}
+
+{% block title %}Cadastro de Comissões - Sistema de Comissões{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="header">
+        <h1>💰 Cadastro de Comissões</h1>
+        <p>Gerencie comissões padrão e regras específicas por produto</p>
+    </div>
+
+    <div class="nav-tabs">
+        <a href="/" class="tab">🏠 Dashboard</a>
+        <a href="/cadastro" class="tab">👥 Cadastro</a>
+        <a href="/comissoes" class="tab active">💰 Comissões</a>
+    </div>
+
+    <!-- Seção de Comissões Padrão -->
+    <div class="card">
+        <div class="card-header">
+            <h2>Comissões Padrão por Vendedor</h2>
+            <p>Configure a comissão padrão para cada vendedor (aplicada quando não há regra específica)</p>
+        </div>
+        
+        <div class="table-container">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>RCA</th>
+                        <th>Nome</th>
+                        <th>Comissão Padrão (%)</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="comissoesPadraoTable">
+                    {% for comissao in comissoes_padrao %}
+                    <tr data-rca="{{ comissao.vendedor_rca }}">
+                        <td>{{ comissao.vendedor_rca }}</td>
+                        <td>{{ comissao.vendedor.nome }}</td>
+                        <td>
+                            <input type="number" 
+                                   class="form-control comissao-padrao-input" 
+                                   value="{{ "%.1f"|format(comissao.taxa_comissao * 100) }}"
+                                   min="0" 
+                                   max="100" 
+                                   step="0.1"
+                                   data-rca="{{ comissao.vendedor_rca }}">
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-primary" onclick="salvarComissaoPadrao({{ comissao.vendedor_rca }})">
+                                💾 Salvar
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Seção de Regras Específicas -->
+    <div class="card">
+        <div class="card-header">
+            <h2>Regras Específicas por Produto</h2>
+            <p>Configure comissões específicas para produtos (sobrescrevem a comissão padrão)</p>
+        </div>
+        
+        <!-- Formulário para nova regra -->
+        <div class="form-section">
+            <h3>Nova Regra de Comissão</h3>
+            <form id="novaRegraForm" class="form-inline">
+                <div class="form-group">
+                    <label for="vendedorSelect">Vendedor:</label>
+                    <select id="vendedorSelect" class="form-control">
+                        <option value="">Todos os vendedores</option>
+                        {% for vendedor in vendedores %}
+                        <option value="{{ vendedor.rca }}">{{ vendedor.rca }} - {{ vendedor.nome }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="codigoProduto">Código do Produto:</label>
+                    <input type="text" id="codigoProduto" class="form-control" required placeholder="Ex: 123">
+                </div>
+                <div class="form-group">
+                    <label for="taxaComissao">Comissão (%):</label>
+                    <input type="number" id="taxaComissao" class="form-control" required min="0" max="100" step="0.1" placeholder="Ex: 2.5">
+                </div>
+                <button type="submit" class="btn btn-success">➕ Adicionar Regra</button>
+            </form>
+        </div>
+        
+        <!-- Tabela de regras existentes -->
+        <div class="table-container">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Vendedor</th>
+                        <th>Produto</th>
+                        <th>Comissão (%)</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="regrasComissaoTable">
+                    {% for regra in regras_comissao %}
+                    <tr data-id="{{ regra.id }}">
+                        <td>{{ regra.vendedor.nome if regra.vendedor else 'Todos' }}</td>
+                        <td>{{ regra.codigo_produto }}</td>
+                        <td>{{ "%.1f"|format(regra.taxa_comissao * 100) }}%</td>
+                        <td>
+                            <button class="btn btn-sm btn-danger" onclick="deletarRegra({{ regra.id }})">
+                                🗑️ Excluir
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Informações sobre hierarquia -->
+    <div class="card">
+        <div class="card-header">
+            <h2>ℹ️ Como Funciona a Hierarquia de Comissões</h2>
+        </div>
+        <div class="card-body">
+            <ol>
+                <li><strong>Regra Específica (Vendedor + Produto):</strong> Maior prioridade - aplica-se apenas ao vendedor específico para o produto específico</li>
+                <li><strong>Regra por Produto:</strong> Aplica-se a todos os vendedores para o produto específico</li>
+                <li><strong>Comissão Padrão:</strong> Aplica-se quando não há regras específicas para o produto</li>
+            </ol>
+            <p><strong>Exemplo:</strong> Se o PRODUTO 123 tem comissão específica de 3%, ele aparecerá na lista. Se não tiver, aparecerá como "OUTROS PRODUTOS" com a comissão padrão.</p>
+        </div>
+    </div>
+</div>
+
+<script>
+// Salvar comissão padrão
+function salvarComissaoPadrao(rca) {
+    const input = document.querySelector(`input[data-rca="${rca}"]`);
+    const taxa = parseFloat(input.value) / 100; // Converte de % para decimal
+    
+    fetch(`/api/comissoes-padrao/${rca}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            taxa_comissao: taxa
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showMessage('Comissão padrão atualizada com sucesso!', 'success');
+        } else {
+            showMessage('Erro ao atualizar: ' + data.message, 'error');
+        }
+    })
+    .catch(error => {
+        showMessage('Erro ao atualizar: ' + error, 'error');
+    });
+}
+
+// Formulário para nova regra
+document.getElementById('novaRegraForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const vendedorRca = document.getElementById('vendedorSelect').value;
+    const codigoProduto = document.getElementById('codigoProduto').value;
+    const taxaComissao = parseFloat(document.getElementById('taxaComissao').value) / 100;
+    
+    fetch('/api/regras-comissao', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            vendedor_rca: vendedorRca || null,
+            codigo_produto: codigoProduto,
+            taxa_comissao: taxaComissao
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showMessage('Regra de comissão criada com sucesso!', 'success');
+            // Limpa o formulário
+            document.getElementById('vendedorSelect').value = '';
+            document.getElementById('codigoProduto').value = '';
+            document.getElementById('taxaComissao').value = '';
+            // Recarrega a página para mostrar a nova regra
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showMessage('Erro ao criar: ' + data.message, 'error');
+        }
+    })
+    .catch(error => {
+        showMessage('Erro ao criar: ' + error, 'error');
+    });
+});
+
+// Deletar regra
+function deletarRegra(regraId) {
+    if (!confirm('Tem certeza que deseja excluir esta regra?')) {
+        return;
+    }
+    
+    fetch(`/api/regras-comissao/${regraId}`, {
+        method: 'DELETE'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showMessage('Regra de comissão deletada com sucesso!', 'success');
+            // Remove a linha da tabela
+            document.querySelector(`tr[data-id="${regraId}"]`).remove();
+        } else {
+            showMessage('Erro ao deletar: ' + data.message, 'error');
+        }
+    })
+    .catch(error => {
+        showMessage('Erro ao deletar: ' + error, 'error');
+    });
+}
+
+// Auto-save para comissões padrão
+document.querySelectorAll('.comissao-padrao-input').forEach(input => {
+    let timeout;
+    input.addEventListener('input', function() {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => {
+            const rca = this.dataset.rca;
+            salvarComissaoPadrao(rca);
+        }, 1000); // Salva automaticamente após 1 segundo sem digitação
+    });
+});
+
+function showMessage(message, type) {
+    // Implementar sistema de mensagens
+    alert(message);
+}
+</script>
+
+<style>
+.form-section {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+.form-inline {
+    display: flex;
+    gap: 15px;
+    align-items: end;
+    flex-wrap: wrap;
+}
+
+.form-inline .form-group {
+    display: flex;
+    flex-direction: column;
+    min-width: 150px;
+}
+
+.form-inline label {
+    margin-bottom: 5px;
+    font-weight: 500;
+}
+
+.comissao-padrao-input {
+    width: 80px;
+    text-align: center;
+}
+
+.card-body ol {
+    margin: 0;
+    padding-left: 20px;
+}
+
+.card-body li {
+    margin-bottom: 10px;
+}
+</style>
+{% endblock %}

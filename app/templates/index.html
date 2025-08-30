@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Sistema de Comissões{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="header">
+        <h1>🏠 Dashboard - Sistema de Comissões</h1>
+        <p>Gerencie dados e gere relatórios de comissões</p>
+    </div>
+
+    <div class="nav-tabs">
+        <a href="/" class="tab active">🏠 Dashboard</a>
+        <a href="/cadastro" class="tab">👥 Cadastro</a>
+        <a href="/comissoes" class="tab">💰 Comissões</a>
+    </div>
+
+    <div class="dashboard-grid">
+        <!-- Card de Importação -->
+        <div class="card">
+            <div class="card-header">
+                <h2>📥 Importar Dados</h2>
+                <p>Importe dados de vendas do Oracle para o período desejado</p>
+            </div>
+            <div class="card-body">
+                <form id="importForm" class="import-form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="mes">Mês:</label>
+                            <select id="mes" name="mes" class="form-control" required>
+                                <option value="">Selecione...</option>
+                                <option value="1">Janeiro</option>
+                                <option value="2">Fevereiro</option>
+                                <option value="3">Março</option>
+                                <option value="4">Abril</option>
+                                <option value="5">Maio</option>
+                                <option value="6">Junho</option>
+                                <option value="7">Julho</option>
+                                <option value="8">Agosto</option>
+                                <option value="9">Setembro</option>
+                                <option value="10">Outubro</option>
+                                <option value="11">Novembro</option>
+                                <option value="12">Dezembro</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="ano">Ano:</label>
+                            <select id="ano" name="ano" class="form-control" required>
+                                <option value="">Selecione...</option>
+                                {% for ano in range(2020, 2026) %}
+                                <option value="{{ ano }}" {% if ano == current_year %}selected{% endif %}>{{ ano }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">
+                            <span class="btn-icon">📥</span>
+                            Importar do Oracle
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Card de Meses Disponíveis -->
+        <div class="card">
+            <div class="card-header">
+                <h2>📊 Dados Disponíveis</h2>
+                <p>Meses com dados já importados</p>
+            </div>
+            <div class="card-body">
+                {% if available_months %}
+                <div class="months-list">
+                    {% for mes, ano in available_months %}
+                    <a href="/relatorio?mes={{ mes }}&ano={{ ano }}" class="month-link">
+                        {{ mes }}/{{ ano }}
+                    </a>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="empty-state">
+                    <p>Nenhum mês com dados importados</p>
+                    <small>Importe dados do Oracle primeiro</small>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Card de Ações Rápidas -->
+        <div class="card">
+            <div class="card-header">
+                <h2>⚡ Ações Rápidas</h2>
+                <p>Acesse funcionalidades principais</p>
+            </div>
+            <div class="card-body">
+                <div class="quick-actions">
+                    <a href="/cadastro" class="quick-action">
+                        <span class="action-icon">👥</span>
+                        <span class="action-text">Gerenciar Vendedores</span>
+                    </a>
+                    <a href="/comissoes" class="quick-action">
+                        <span class="action-icon">💰</span>
+                        <span class="action-text">Gerenciar Comissões</span>
+                    </a>
+                    <a href="/relatorio?mes={{ current_month }}&ano={{ current_year }}" class="quick-action">
+                        <span class="action-icon">📊</span>
+                        <span class="action-text">Relatório Atual</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Confirmação -->
+    <div id="confirmModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Confirmar Importação</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p>Tem certeza que deseja importar os dados do Oracle para <strong id="modalPeriod"></strong>?</p>
+                <p><small>Esta operação pode demorar alguns minutos dependendo da quantidade de dados.</small></p>
+            </div>
+            <div class="modal-footer">
+                <button id="confirmImport" class="btn btn-primary">Confirmar Importação</button>
+                <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Configurar valores padrão
+document.getElementById('mes').value = '{{ current_month }}';
+document.getElementById('ano').value = '{{ current_year }}';
+
+// Modal functions
+function showModal(period) {
+    document.getElementById('modalPeriod').textContent = period;
+    document.getElementById('confirmModal').style.display = 'block';
+}
+
+function closeModal() {
+    document.getElementById('confirmModal').style.display = 'none';
+}
+
+// Fechar modal ao clicar fora
+window.onclick = function(event) {
+    const modal = document.getElementById('confirmModal');
+    if (event.target === modal) {
+        closeModal();
+    }
+}
+
+// Fechar modal com X
+document.querySelector('.close').onclick = closeModal;
+
+// Form submit
+document.getElementById('importForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const mes = document.getElementById('mes').value;
+    const ano = document.getElementById('ano').value;
+    
+    if (!mes || !ano) {
+        alert('Por favor, selecione mês e ano');
+        return;
+    }
+    
+    const monthNames = [
+        'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+        'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+    ];
+    
+    const period = `${monthNames[parseInt(mes) - 1]}/${ano}`;
+    showModal(period);
+    
+    // Armazenar dados para uso no modal
+    window.pendingImport = { mes, ano };
+});
+
+// Confirmar importação
+document.getElementById('confirmImport').addEventListener('click', function() {
+    const { mes, ano } = window.pendingImport;
+    
+    // Desabilitar botão
+    this.disabled = true;
+    this.textContent = 'Importando...';
+    
+    // Fazer requisição
+    fetch('/importar', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: `mes=${mes}&ano=${ano}`
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('✅ ' + data.message);
+            // Recarregar página para atualizar lista de meses
+            location.reload();
+        } else {
+            alert('❌ ' + data.message);
+        }
+    })
+    .catch(error => {
+        alert('❌ Erro ao importar: ' + error);
+    })
+    .finally(() => {
+        // Reabilitar botão
+        this.disabled = false;
+        this.textContent = 'Confirmar Importação';
+        closeModal();
+    });
+});
+</script>
+{% endblock %}

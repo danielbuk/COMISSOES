@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+
+{% block title %}Cadastro de Vendedores - Sistema de Comissões{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="header">
+        <h1>📋 Cadastro de Vendedores</h1>
+        <p>Gerencie os vendedores da cooperativa e configurações</p>
+    </div>
+
+    <div class="nav-tabs">
+        <a href="/" class="tab">🏠 Dashboard</a>
+        <a href="/cadastro" class="tab active">👥 Cadastro</a>
+        <a href="/comissoes" class="tab">💰 Comissões</a>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h2>Vendedores Cadastrados</h2>
+            <div class="search-box">
+                <input type="text" id="searchVendedor" placeholder="Buscar vendedor..." class="form-control">
+            </div>
+        </div>
+        
+        <div class="table-container">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>RCA</th>
+                        <th>Nome</th>
+                        <th>Tipo</th>
+                        <th>Cooperativa</th>
+                        <th>Ignorar no Relatório</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="vendedoresTable">
+                    {% for vendedor in vendedores %}
+                    <tr data-rca="{{ vendedor.rca }}" class="{% if vendedor.is_cooperativa %}cooperativa-row{% endif %}">
+                        <td>{{ vendedor.rca }}</td>
+                        <td>{{ vendedor.nome }}</td>
+                        <td>
+                            <span class="badge badge-{{ 'primary' if vendedor.tipo.value == 'Interno' else 'secondary' }}">
+                                {{ vendedor.tipo.value }}
+                            </span>
+                        </td>
+                        <td>
+                            <label class="switch">
+                                <input type="checkbox" 
+                                       class="cooperativa-toggle" 
+                                       data-rca="{{ vendedor.rca }}"
+                                       {% if vendedor.is_cooperativa %}checked{% endif %}>
+                                <span class="slider round"></span>
+                            </label>
+                        </td>
+                        <td>
+                            <label class="switch">
+                                <input type="checkbox" 
+                                       class="ignorar-toggle" 
+                                       data-rca="{{ vendedor.rca }}"
+                                       {% if vendedor.ignorar_no_relatorio %}checked{% endif %}>
+                                <span class="slider round"></span>
+                            </label>
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-primary" onclick="editarVendedor({{ vendedor.rca }})">
+                                ✏️ Editar
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Modal para editar vendedor -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Editar Vendedor</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="editForm">
+                    <div class="form-group">
+                        <label for="editRca">RCA:</label>
+                        <input type="number" id="editRca" readonly class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label for="editNome">Nome:</label>
+                        <input type="text" id="editNome" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="editTipo">Tipo:</label>
+                        <select id="editTipo" class="form-control">
+                            <option value="EXTERNO">Externo</option>
+                            <option value="INTERNO">Interno</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="editCooperativa"> É Cooperativa
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="editIgnorar"> Ignorar no Relatório
+                        </label>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">Salvar</button>
+                        <button type="button" class="btn btn-secondary" onclick="fecharModal()">Cancelar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Busca de vendedores
+document.getElementById('searchVendedor').addEventListener('input', function() {
+    const searchTerm = this.value.toLowerCase();
+    const rows = document.querySelectorAll('#vendedoresTable tr');
+    
+    rows.forEach(row => {
+        const nome = row.cells[1].textContent.toLowerCase();
+        const rca = row.cells[0].textContent;
+        
+        if (nome.includes(searchTerm) || rca.includes(searchTerm)) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+});
+
+// Toggle cooperativa
+document.querySelectorAll('.cooperativa-toggle').forEach(toggle => {
+    toggle.addEventListener('change', function() {
+        const rca = this.dataset.rca;
+        const isCooperativa = this.checked;
+        
+        fetch(`/api/vendedores/${rca}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                is_cooperativa: isCooperativa
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const row = this.closest('tr');
+                if (isCooperativa) {
+                    row.classList.add('cooperativa-row');
+                } else {
+                    row.classList.remove('cooperativa-row');
+                }
+                showMessage('Vendedor atualizado com sucesso!', 'success');
+            } else {
+                showMessage('Erro ao atualizar: ' + data.message, 'error');
+                this.checked = !isCooperativa; // Reverte o toggle
+            }
+        })
+        .catch(error => {
+            showMessage('Erro ao atualizar: ' + error, 'error');
+            this.checked = !isCooperativa; // Reverte o toggle
+        });
+    });
+});
+
+// Toggle ignorar no relatório
+document.querySelectorAll('.ignorar-toggle').forEach(toggle => {
+    toggle.addEventListener('change', function() {
+        const rca = this.dataset.rca;
+        const ignorar = this.checked;
+        
+        fetch(`/api/vendedores/${rca}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                ignorar_no_relatorio: ignorar
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showMessage('Vendedor atualizado com sucesso!', 'success');
+            } else {
+                showMessage('Erro ao atualizar: ' + data.message, 'error');
+                this.checked = !ignorar; // Reverte o toggle
+            }
+        })
+        .catch(error => {
+            showMessage('Erro ao atualizar: ' + error, 'error');
+            this.checked = !ignorar; // Reverte o toggle
+        });
+    });
+});
+
+// Modal functions
+function editarVendedor(rca) {
+    const row = document.querySelector(`tr[data-rca="${rca}"]`);
+    const nome = row.cells[1].textContent;
+    const tipo = row.cells[2].textContent.trim();
+    const isCooperativa = row.querySelector('.cooperativa-toggle').checked;
+    const ignorar = row.querySelector('.ignorar-toggle').checked;
+    
+    document.getElementById('editRca').value = rca;
+    document.getElementById('editNome').value = nome;
+    document.getElementById('editTipo').value = tipo === 'Interno' ? 'INTERNO' : 'EXTERNO';
+    document.getElementById('editCooperativa').checked = isCooperativa;
+    document.getElementById('editIgnorar').checked = ignorar;
+    
+    document.getElementById('editModal').style.display = 'block';
+}
+
+function fecharModal() {
+    document.getElementById('editModal').style.display = 'none';
+}
+
+// Fechar modal ao clicar fora
+window.onclick = function(event) {
+    const modal = document.getElementById('editModal');
+    if (event.target === modal) {
+        fecharModal();
+    }
+}
+
+// Fechar modal com X
+document.querySelector('.close').onclick = fecharModal;
+
+// Form submit
+document.getElementById('editForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const rca = document.getElementById('editRca').value;
+    const nome = document.getElementById('editNome').value;
+    const tipo = document.getElementById('editTipo').value;
+    const isCooperativa = document.getElementById('editCooperativa').checked;
+    const ignorar = document.getElementById('editIgnar').checked;
+    
+    // Aqui você pode implementar a atualização via API
+    showMessage('Funcionalidade de edição em desenvolvimento', 'info');
+    fecharModal();
+});
+
+function showMessage(message, type) {
+    // Implementar sistema de mensagens
+    alert(message);
+}
+</script>
+{% endblock %}
